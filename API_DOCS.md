@@ -130,3 +130,58 @@ Perform CRUD operations on products.
   "created_by": 2
 }
 ```
+
+---
+
+## 6. Inventory Management
+Track stock levels across different sites and locations.
+
+- **Base Endpoint:** `/api/inventory/`
+- **Method:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
+- **Header:** `Authorization: Bearer <your_access_token>`
+
+### Create Inventory Record (POST)
+Use this to set initial stock or add stock at a new location.
+```json
+{
+  "product": 1, 
+  "site": "Warehouse A",
+  "location": "A1-Shelf-5",
+  "product_description": "Zinc Bolt M8 - 50mm",
+  "quantity_on_hand": 500,
+  "stock_value": 250.00,
+  "reorder_status": "no",
+  "order_date": "2026-03-24"
+}
+```
+
+### Response Example (Rich Data)
+The response includes detailed information about the product and site.
+```json
+{
+  "id": 1,
+  "product": 1,
+  "product_details": {
+      "id": 1,
+      "product_name": "Zinc Bolt M8",
+      "category": "Fasteners",
+      "supplier": "CTK Industrial",
+      "cost_per_unit": "0.50",
+      "reorder_level": 100
+  },
+  "site": "Warehouse A",
+  "location": "A1-Shelf-5",
+  "product_description": "Zinc Bolt M8 - 50mm",
+  "quantity_on_hand": 500,
+  "stock_value": "250.00",
+  "reorder_status": "no",
+  "order_date": "2026-03-24",
+  "created_at": "...",
+  "updated_at": "..."
+}
+```
+
+### Filtering Features
+You can filter results using URL parameters:
+- `?product_id=1`: Find inventory for a specific product.
+- `?site=Warehouse`: Search for inventory at a specific site (supports partial match).
