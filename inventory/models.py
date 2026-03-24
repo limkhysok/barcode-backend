@@ -22,3 +22,15 @@ class Inventory(models.Model):
 
     def __str__(self):
         return f"{self.product.product_name} at {self.site} ({self.location})"
+
+    def refresh_stats(self):
+        """ Recalculate stock value and reorder status base on quantity """
+        from decimal import Decimal
+        cost = self.product.cost_per_unit or Decimal('0.00')
+        self.stock_value = self.quantity_on_hand * cost
+        
+        if self.quantity_on_hand <= self.product.reorder_level:
+            self.reorder_status = "Yes"
+        else:
+            self.reorder_status = "No"
+        self.save()

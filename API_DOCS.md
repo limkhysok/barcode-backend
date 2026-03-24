@@ -181,7 +181,41 @@ The response includes detailed information about the product and site.
 }
 ```
 
-### Filtering Features
-You can filter results using URL parameters:
-- `?product_id=1`: Find inventory for a specific product.
-- `?site=Warehouse`: Search for inventory at a specific site (supports partial match).
+---
+
+## 7. Transactions (Stock In/Out)
+Track movement of goods. Creating a transaction automatically updates the linked inventory balance.
+
+- **Base Endpoint:** `/api/transactions/`
+- **Method:** `GET` / `POST` / `DELETE`
+- **Header:** `Authorization: Bearer <your_access_token>`
+
+### Create Transaction (POST)
+Types allowed: `Receive` (Stock In), `Sale` (Stock Out).
+**Note:** Use **positive** quantities for `Receive` and **negative** quantities for `Sale`.
+```json
+{
+  "inventory": 1,
+  "transaction_type": "Receive",
+  "quantity": 25
+}
+```
+
+### Auto-Update Feature
+When you POST a transaction:
+1.  The `quantity_on_hand` in the linked Inventory record is updated.
+2.  The `stock_value` and `reorder_status` are recalculated instantly.
+
+### Response Example
+```json
+{
+  "id": 1,
+  "inventory": 1,
+  "inventory_details": { ... },
+  "transaction_type": "Receive",
+  "quantity": 25,
+  "performed_by": 2,
+  "performed_by_username": "staff_user",
+  "transaction_date": "..."
+}
+```
