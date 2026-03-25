@@ -169,10 +169,24 @@ Category choices: `Fasteners`, `Accessories`
 ---
 
 ## 6. Inventory Management
-Track stock levels across sites and locations.
+
+Track stock levels across sites and locations. **All endpoints require authentication with a JWT access token.**
 
 - **Base Endpoint:** `/api/inventory`
 - **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
+
+> **Note:** All inventory endpoints require the following header:
+>
+> ```
+> Authorization: Bearer <access_token>
+> ```
+>
+> You must first obtain an access token via the login endpoint (`POST /api/auth/login`).
+
+#### Example using curl:
+```
+curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/inventory/
+```
 
 ### Query Parameters (GET list)
 | Param | Description |
@@ -187,9 +201,7 @@ Track stock levels across sites and locations.
   "product": 1,
   "site": "Warehouse A",
   "location": "A1-Shelf-5",
-  "product_description": "Zinc Bolt M8 - 50mm",
-  "quantity_on_hand": 500,
-  "order_date": "2026-03-24"
+  "quantity_on_hand": 500
 }
 ```
 
@@ -209,11 +221,9 @@ Track stock levels across sites and locations.
   },
   "site": "Warehouse A",
   "location": "A1-Shelf-5",
-  "product_description": "Zinc Bolt M8 - 50mm",
   "quantity_on_hand": 500,
   "stock_value": "250.00",
   "reorder_status": "No",
-  "order_date": "2026-03-24",
   "created_at": "2026-03-25T08:00:00Z",
   "updated_at": "2026-03-25T08:00:00Z"
 }

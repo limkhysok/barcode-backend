@@ -8,8 +8,6 @@ class Inventory(models.Model):
     )
     site = models.CharField(max_length=255)  # Store A,B,C
     location = models.CharField(max_length=255)
-    order_date = models.DateField(null=True, blank=True)
-    product_description = models.CharField(max_length=255)
     quantity_on_hand = models.IntegerField(default=0)
     stock_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     reorder_status = models.CharField(max_length=255, default="No")  # yes and no
