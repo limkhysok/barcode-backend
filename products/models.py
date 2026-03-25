@@ -15,9 +15,6 @@ class Product(models.Model):
         ("Accessories", "Accessories"),
     ]
 
-    # Explicit productid — maps to the 'id' column in the database
-    productid = models.BigAutoField(primary_key=True, db_column='id')
-
     # Barcode starting with SN-
     barcode = models.CharField(
         max_length=20, 
@@ -42,4 +39,4 @@ class Product(models.Model):
     )
 
     def __str__(self):
-        return f"#{self.productid} - {self.product_name} ({self.barcode})"
+        return f"#{self.id} - {self.product_name} ({self.barcode})"

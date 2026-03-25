@@ -89,10 +89,19 @@ Retrieve or update the currently logged-in user.
 ---
 
 ## 5. Product Management
+
 CRUD operations on products.
 
 - **Base Endpoint:** `/api/products`
-- **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
+- **Methods:**
+  - `GET /api/products` — List all products
+  - `POST /api/products` — Create a new product
+  - `GET /api/products/<id>` — Retrieve a product by id
+  - `PUT /api/products/<id>` — Replace a product by id
+  - `PATCH /api/products/<id>` — Update part of a product by id
+  - `DELETE /api/products/<id>` — Delete a product by id
+
+> **Note:** The `<id>` in the URL is the product's `id` field (the primary key in the database and in API responses).
 
 ### Create Product (POST)
 `barcode` is optional — auto-generated as `SN-XXXXXX` if omitted.
@@ -108,7 +117,7 @@ CRUD operations on products.
 
 Category choices: `Fasteners`, `Accessories`
 
-### Response Example
+### Response Example (POST/GET)
 ```json
 {
   "id": 1,
@@ -123,6 +132,24 @@ Category choices: `Fasteners`, `Accessories`
   "created_by": 2
 }
 ```
+
+### Retrieve Product (GET)
+`GET /api/products/<id>`
+
+### Update Product (PUT/PATCH)
+`PUT /api/products/<id>` or `PATCH /api/products/<id>`
+
+#### Example PATCH payload
+```json
+{
+  "product_name": "Updated Name"
+}
+```
+
+### Delete Product (DELETE)
+`DELETE /api/products/<id>`
+
+> All detail, update, and delete operations require the correct product `id` in the URL. If the product does not exist, a 404 Not Found will be returned.
 
 ---
 
