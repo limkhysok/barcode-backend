@@ -9,7 +9,7 @@ This backend uses **Django Rest Framework** and **SimpleJWT** for secure authent
 ## 1. User Registration
 Create a new user account.
 
-- **Endpoint:** `POST /api/auth/register/`
+- **Endpoint:** `POST /api/auth/register`
 
 ### Payload
 ```json
@@ -35,7 +35,7 @@ Create a new user account.
 
 ## 2. User Login (Obtain Token)
 
-- **Endpoint:** `POST /api/auth/login/`
+- **Endpoint:** `POST /api/auth/login`
 
 ### Payload
 ```json
@@ -58,7 +58,7 @@ Create a new user account.
 ## 3. Get / Update Current User
 Retrieve or update the currently logged-in user.
 
-- **Endpoint:** `GET / PATCH / PUT /api/auth/me/`
+- **Endpoint:** `GET / PATCH / PUT /api/auth/me`
 
 ### Response (200 OK)
 ```json
@@ -74,7 +74,7 @@ Retrieve or update the currently logged-in user.
 
 ## 4. Token Refresh
 
-- **Endpoint:** `POST /api/auth/token/refresh/`
+- **Endpoint:** `POST /api/auth/token/refresh`
 
 ### Payload
 ```json
@@ -91,7 +91,7 @@ Retrieve or update the currently logged-in user.
 ## 5. Product Management
 CRUD operations on products.
 
-- **Base Endpoint:** `/api/products/`
+- **Base Endpoint:** `/api/products`
 - **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
 
 ### Create Product (POST)
@@ -129,7 +129,7 @@ Category choices: `Fasteners`, `Accessories`
 ## 6. Inventory Management
 Track stock levels across sites and locations.
 
-- **Base Endpoint:** `/api/inventory/`
+- **Base Endpoint:** `/api/inventory`
 - **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
 
 ### Query Parameters (GET list)
@@ -182,7 +182,7 @@ Track stock levels across sites and locations.
 ## 7. Barcode Scan Lookup
 Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 
-- **Endpoint:** `GET /api/inventory/scan/?barcode=<barcode>`
+- **Endpoint:** `GET /api/inventory/scan?barcode=<barcode>`
 
 ### Responses
 
@@ -238,7 +238,7 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 ```
 
 ### Frontend flow (scan page)
-1. Scan barcode → `GET /api/inventory/scan/?barcode=<scanned_value>`
+1. Scan barcode → `GET /api/inventory/scan?barcode=<scanned_value>`
 2. If `found: true` → show inventory list, user picks a site/location
 3. If `found: false` with product → show "item not in inventory"
 4. If 404 → show "unknown barcode"
@@ -249,7 +249,7 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 ## 8. Transactions (Stock In / Out)
 Log stock movements. Creating a transaction automatically updates the linked inventory balance.
 
-- **Base Endpoint:** `/api/transactions/`
+- **Base Endpoint:** `/api/transactions`
 - **Methods:** `GET` / `POST` / `DELETE`
 
 ### Query Parameters (GET list)
@@ -307,6 +307,6 @@ When a transaction is posted:
 | Receive quantity is negative | `"Receives must be recorded as positive numbers."` |
 
 ### Frontend flow (transaction page)
-1. User types product name → `GET /api/inventory/?search=<term>` → populate dropdown
+1. User types product name → `GET /api/inventory?search=<term>` → populate dropdown
 2. User selects inventory record, enters quantity and type
-3. `POST /api/transactions/` with `{ inventory, quantity, transaction_type }`
+3. `POST /api/transactions` with `{ inventory, quantity, transaction_type }`
