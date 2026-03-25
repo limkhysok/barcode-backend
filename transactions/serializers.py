@@ -6,12 +6,20 @@ class TransactionSerializer(serializers.ModelSerializer):
     inventory_details = InventorySerializer(source='inventory', read_only=True)
     performed_by_username = serializers.CharField(source='performed_by.username', read_only=True)
 
+    # Flat convenience fields so the frontend doesn't have to dig into inventory_details
+    product_name = serializers.CharField(source='inventory.product.product_name', read_only=True)
+    barcode = serializers.CharField(source='inventory.product.barcode', read_only=True)
+    site = serializers.CharField(source='inventory.site', read_only=True)
+    location = serializers.CharField(source='inventory.location', read_only=True)
+
     class Meta:
         model = Transaction
         fields = [
-            'id', 'inventory', 'inventory_details', 'transaction_type', 
-            'quantity', 'performed_by', 'performed_by_username', 
-            'transaction_date'
+            'id', 'inventory', 'inventory_details',
+            'product_name', 'barcode', 'site', 'location',
+            'transaction_type', 'quantity',
+            'performed_by', 'performed_by_username',
+            'transaction_date',
         ]
         read_only_fields = ['performed_by', 'transaction_date']
 
