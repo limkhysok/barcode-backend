@@ -1,6 +1,13 @@
 from django.db import models
 from django.conf import settings
+import random
+import string
 
+def generate_barcode():
+    """ Generate a random string like SN-XXXXXX (6 alphanumeric chars) """
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"SN-{code}"
 
 class Product(models.Model):
     CATEGORY_CHOICES = [
@@ -8,6 +15,16 @@ class Product(models.Model):
         ("Accessories", "Accessories"),
     ]
 
+    # Explicit productid with auto-increment
+    productid = models.AutoField(primary_key=True)
+
+    # Barcode starting with SN-
+    barcode = models.CharField(
+        max_length=20, 
+        unique=True, 
+        default=generate_barcode,
+        help_text="Barcode format: SN-XXXXXX (Randomly generated)"
+    )
     product_name = models.CharField(max_length=255, null=False, blank=False)
     category = models.CharField(
         max_length=255, choices=CATEGORY_CHOICES, default="Fasteners"
@@ -25,4 +42,4 @@ class Product(models.Model):
     )
 
     def __str__(self):
-        return f"{self.product_name} ({self.supplier})"
+        return f"#{self.productid} - {self.product_name} ({self.barcode})"

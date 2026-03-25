@@ -106,13 +106,14 @@ Perform CRUD operations on products.
 - **Header:** `Authorization: Bearer <your_access_token>`
 
 ### Create Product Example (POST)
+- **Note:** `barcode` is optional. If not provided, the system generates a random 8-character ID (mixed case).
 ```json
 {
-  "product_name": "Screws M5",
+  "product_name": "Zinc Bolt M8",
   "category": "Fasteners",
-  "cost_per_unit": 12.50,
-  "reorder_level": 50,
-  "supplier": "CTK Supply Co."
+  "cost_per_unit": 0.50,
+  "reorder_level": 100,
+  "supplier": "CTK Industrial"
 }
 ```
 
@@ -120,13 +121,14 @@ Perform CRUD operations on products.
 ```json
 {
   "id": 1,
-  "product_name": "Screws M5",
+  "barcode": "128vj2-B8",
+  "product_name": "Zinc Bolt M8",
   "category": "Fasteners",
-  "cost_per_unit": "12.50",
-  "reorder_level": 50,
-  "supplier": "CTK Supply Co.",
-  "created_at": "2026-03-24T...",
-  "updated_at": "2026-03-24T...",
+  "cost_per_unit": "0.50",
+  "reorder_level": 100,
+  "supplier": "CTK Industrial",
+  "created_at": "...",
+  "updated_at": "...",
   "created_by": 2
 }
 ```
