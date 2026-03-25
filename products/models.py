@@ -15,8 +15,8 @@ class Product(models.Model):
         ("Accessories", "Accessories"),
     ]
 
-    # Explicit productid with auto-increment
-    productid = models.AutoField(primary_key=True)
+    # Explicit productid — maps to the 'id' column in the database
+    productid = models.BigAutoField(primary_key=True, db_column='id')
 
     # Barcode starting with SN-
     barcode = models.CharField(
