@@ -90,7 +90,8 @@ Retrieve or update the currently logged-in user.
 
 ## 5. Product Management
 
-CRUD operations on products.
+
+CRUD operations on products. **All endpoints require authentication with a JWT access token.**
 
 - **Base Endpoint:** `/api/products`
 - **Methods:**
@@ -102,6 +103,20 @@ CRUD operations on products.
   - `DELETE /api/products/<id>` — Delete a product by id
 
 > **Note:** The `<id>` in the URL is the product's `id` field (the primary key in the database and in API responses).
+
+### Authentication Required
+All product endpoints require the following header:
+
+```
+Authorization: Bearer <access_token>
+```
+
+You must first obtain an access token via the login endpoint (`POST /api/auth/login`).
+
+#### Example using curl:
+```
+curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/products/
+```
 
 ### Create Product (POST)
 `barcode` is optional — auto-generated as `SN-XXXXXX` if omitted.
