@@ -15,22 +15,25 @@ class Product(models.Model):
         ("Accessories", "Accessories"),
     ]
 
-    # Barcode starting with SN-
+    # Explicitly naming it 'id' is fine, but Django does this by default!
+    id = models.BigAutoField(primary_key=True)
+
     barcode = models.CharField(
         max_length=20, 
         unique=True, 
         default=generate_barcode,
-        help_text="Barcode format: SN-XXXXXX (Randomly generated)"
+        help_text="Barcode format: SN-XXXXXX"
     )
-    product_name = models.CharField(max_length=255, null=False, blank=False)
+    product_name = models.CharField(max_length=255)
     category = models.CharField(
         max_length=255, choices=CATEGORY_CHOICES, default="Fasteners"
     )
+    # Using DecimalField is correct for currency—never use FloatField!
     cost_per_unit = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
-    reorder_level = models.IntegerField(default=5)
-    supplier = models.CharField(max_length=255, null=False, blank=False)
+    reorder_level = models.PositiveIntegerField(default=5) # Added PositiveIntegerField
+    supplier = models.CharField(max_length=255)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -39,4 +42,5 @@ class Product(models.Model):
     )
 
     def __str__(self):
+        # Fixed self.productid -> self.id
         return f"#{self.id} - {self.product_name} ({self.barcode})"
