@@ -22,7 +22,11 @@ urlpatterns = [
     path('', RedirectView.as_view(url='api/auth/')),
     path('admin/', admin.site.urls),
     path('api/auth/', include('users.urls')),
+    path('api/auth', include('users.urls')),
     path('api/products/', include('products.urls')),
+    path('api/products', include('products.urls')),
     path('api/inventory/', include('inventory.urls')),
+    path('api/inventory', include('inventory.urls')),
     path('api/transactions/', include('transactions.urls')),
+    path('api/transactions', include('transactions.urls')),
 ]
