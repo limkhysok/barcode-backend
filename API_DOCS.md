@@ -388,3 +388,72 @@ When a transaction is posted:
 1. User types product name → `GET /api/inventory?search=<term>` → populate dropdown
 2. User selects inventory record, enters quantity and type
 3. `POST /api/transactions` with `{ inventory, quantity, transaction_type }`
+
+---
+
+## 9. Scan Transaction (Stock In / Out via Barcode)
+Create a transaction by scanning a product barcode. The frontend handles the camera scan and sends the barcode to this endpoint.
+
+- **Endpoint:** `POST /api/transactions/scan`
+- **Auth required:** Yes
+
+### Payload
+```json
+{
+  "barcode": "SN-A1B2C3",
+  "transaction_type": "Receive",
+  "quantity": 10,
+  "inventory_id": 1
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `barcode` | Yes | Scanned product barcode |
+| `transaction_type` | Yes | `Receive` or `Sale` |
+| `quantity` | Yes | Positive for Receive, negative for Sale |
+| `inventory_id` | Conditional | Required only if the product has multiple inventory records (different sites/locations) |
+
+### Response (201 Created)
+Same shape as `POST /api/transactions` — full transaction object with `total_value`, `inventory_details`, etc.
+
+### Error Responses
+
+**Missing required field (400)**
+```json
+{ "barcode": "This field is required." }
+```
+
+**Barcode not found (404)**
+```json
+{ "detail": "No product found with this barcode." }
+```
+
+**Product has no inventory record (404)**
+```json
+{ "detail": "Product found but has no inventory record.", "product": "Zinc Bolt M8" }
+```
+
+**Multiple inventory records — inventory_id not specified (400)**
+```json
+{
+  "detail": "Multiple inventory records found for this product. Please specify inventory_id.",
+  "inventory": [ { "id": 1, "site": "Warehouse A", ... }, { "id": 2, "site": "Warehouse B", ... } ]
+}
+```
+
+**inventory_id doesn't belong to this product (400)**
+```json
+{ "detail": "The specified inventory_id does not belong to this product." }
+```
+
+**Insufficient stock for Sale (400)**
+```json
+{ "quantity": "Insufficient stock. Current balance is only X units." }
+```
+
+### Frontend flow (scan page)
+1. Camera scans barcode → `POST /api/transactions/scan` with `{ barcode, transaction_type, quantity }`
+2. If **400 with inventory list** → show site picker → re-submit with `inventory_id`
+3. If **404** → show "Unknown barcode" or "Not in inventory" message
+4. If **201** → show success with `total_value` and updated stock
