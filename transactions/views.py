@@ -10,34 +10,32 @@ from inventory.serializers import InventorySerializer
 
 class TransactionViewSet(viewsets.ModelViewSet):
     """
-    Log and manage stock transactions (In, Out, Adjust).
+    Log and manage stock transactions (Receive / Sale).
+    Each transaction has a single type and can contain multiple items.
     """
-    queryset = Transaction.objects.all()
+    queryset = Transaction.objects.prefetch_related('items__inventory__product').all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        inventory_id = self.request.query_params.get('inventory_id')
         transaction_type = self.request.query_params.get('type')
         barcode = self.request.query_params.get('barcode')
         search = self.request.query_params.get('search')
 
-        if inventory_id:
-            queryset = queryset.filter(inventory_id=inventory_id)
         if transaction_type:
             queryset = queryset.filter(transaction_type=transaction_type)
         if barcode:
-            queryset = queryset.filter(inventory__product__barcode=barcode)
+            queryset = queryset.filter(items__inventory__product__barcode=barcode)
         if search:
-            queryset = queryset.filter(inventory__product__product_name__icontains=search)
+            queryset = queryset.filter(items__inventory__product__product_name__icontains=search)
 
-        return queryset
+        return queryset.distinct()
 
     @action(detail=False, methods=['post'], url_path='scan')
     def scan(self, request):
         """
-        Create a transaction by scanning a product barcode.
+        Create a single-item transaction by scanning a product barcode.
         POST /api/transactions/scan
         Body: { barcode, transaction_type, quantity, inventory_id (optional) }
         """
@@ -46,7 +44,6 @@ class TransactionViewSet(viewsets.ModelViewSet):
         quantity = request.data.get('quantity')
         inventory_id = request.data.get('inventory_id')
 
-        # Validate required fields
         required = 'This field is required.'
         errors = {}
         if not barcode:
@@ -87,21 +84,19 @@ class TransactionViewSet(viewsets.ModelViewSet):
         elif inventory_qs.count() == 1:
             inventory = inventory_qs.first()
         else:
-            # Multiple records — ask frontend to specify
             return Response(
                 {
-                    'detail': 'Multiple inventory records found for this product. Please specify inventory_id.',
+                    'detail': 'Multiple inventory records found. Please specify inventory_id.',
                     'inventory': InventorySerializer(inventory_qs, many=True).data,
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Step 4: Delegate to TransactionSerializer (reuses all validation + total_value logic)
+        # Step 4: Delegate to TransactionSerializer (reuses all validation logic)
         serializer = TransactionSerializer(
             data={
-                'inventory': inventory.id,
                 'transaction_type': transaction_type,
-                'quantity': quantity,
+                'items': [{'inventory': inventory.id, 'quantity': quantity}],
             },
             context={'request': request}
         )

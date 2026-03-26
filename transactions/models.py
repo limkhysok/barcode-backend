@@ -1,28 +1,26 @@
 from django.db import models
 from django.conf import settings
-from inventory.models import Inventory
-
 
 class Transaction(models.Model):
-    TRANSACTION_TYPES = [
-        ("Receive", "Receive"),
-        ("Sale", "Sale"),
-    ]
-
-    inventory = models.ForeignKey(
-        Inventory, on_delete=models.CASCADE, related_name="transactions"
-    )
-    quantity = models.IntegerField()  # positive for receive, negative for sale
-    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
-    performed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
-    )
-
-    total_value = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    # The "Envelope" (Header)
+    transaction_type = models.CharField(max_length=10) # Receive / Sale
     transaction_date = models.DateTimeField(auto_now_add=True)
+    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    
+    @property
+    def total_transaction_value(self):
+        # Dynamically calculate total from all items
+        return sum(item.line_total for item in self.items.all())
 
-    class Meta:
-        ordering = ["-transaction_date"]
-
-    def __str__(self):
-        return f"{self.transaction_type} - {self.inventory.product.product_name} ({self.quantity})"
+class TransactionItem(models.Model):
+    # The "Contents" (Details)
+    transaction = models.ForeignKey(Transaction, related_name='items', on_delete=models.CASCADE)
+    inventory = models.ForeignKey('inventory.Inventory', on_delete=models.PROTECT)
+    
+    # Snapshot fields (Keep these to record the price/name AT THE TIME of transaction)
+    quantity = models.IntegerField()
+    cost_per_unit = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    @property
+    def line_total(self):
+        return self.quantity * self.cost_per_unit

@@ -299,12 +299,12 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 ---
 
 ## 8. Transactions (Stock In / Out)
-Log stock movements. Creating a transaction automatically updates the linked inventory balance.
+Log stock movements. A single transaction has **one type** (`Receive` or `Sale`) and can contain **multiple items** across different inventory records. Creating a transaction automatically updates all linked inventory balances.
 
 - **Base Endpoint:** `/api/transactions`
 - **Methods:**
   - `GET /api/transactions` — List all transactions
-  - `POST /api/transactions` — Create a new transaction
+  - `POST /api/transactions` — Create a new transaction with items
   - `GET /api/transactions/<id>` — Retrieve a transaction by id
   - `PUT /api/transactions/<id>` — Replace a transaction by id
   - `PATCH /api/transactions/<id>` — Update part of a transaction by id
@@ -313,29 +313,34 @@ Log stock movements. Creating a transaction automatically updates the linked inv
 ### Query Parameters (GET list)
 | Param | Description |
 |-------|-------------|
-| `inventory_id=<id>` | Filter by inventory record |
 | `type=Receive\|Sale` | Filter by transaction type |
-| `barcode=<barcode>` | Filter by product barcode |
-| `search=<term>` | Search by product name |
+| `barcode=<barcode>` | Filter by product barcode (matches any item in the transaction) |
+| `search=<term>` | Search by product name (matches any item in the transaction) |
+
+> `inventory_id` filter removed — transactions now hold multiple items, filter by `barcode` or `search` instead.
 
 ### Create Transaction (POST)
-Used by **both** the scan page and the transaction page after the user has selected an inventory record.
 
-- Use **positive** quantity for `Receive` (stock in)
-- Use **negative** quantity for `Sale` (stock out)
+- `transaction_type` is set **once at the header** — all items must follow it (no mixing)
+- Use **positive** quantity for `Receive`, **negative** for `Sale`
+- `cost_per_unit` is **auto-snapshotted** from the product at the time of creation — do not send it
+- `performed_by` is **auto-assigned** from the JWT token
 
 ```json
 {
-  "inventory": 1,
   "transaction_type": "Receive",
-  "quantity": 25
+  "items": [
+    { "inventory": 1, "quantity": 10 },
+    { "inventory": 3, "quantity": 5 },
+    { "inventory": 7, "quantity": 20 }
+  ]
 }
 ```
 
 Transaction types: `Receive`, `Sale`
 
 ### Auto-Update on Create
-When a transaction is posted:
+For each item when a transaction is posted:
 1. `quantity_on_hand` on the linked inventory record is adjusted by the signed quantity.
 2. `stock_value` and `reorder_status` are recalculated immediately.
 
@@ -343,56 +348,78 @@ When a transaction is posted:
 ```json
 {
   "id": 1,
-  "inventory": 1,
-  "inventory_details": {
-    "id": 1,
-    "product": 1,
-    "product_details": {
-      "id": 1,
-      "barcode": "SN-A1B2C3",
-      "product_name": "Zinc Bolt M8",
-      "category": "Fasteners",
-      "supplier": "CTK Industrial",
-      "cost_per_unit": "0.50",
-      "reorder_level": 100
-    },
-    "site": "Warehouse A",
-    "location": "A1-Shelf-5",
-    "quantity_on_hand": 525,
-    "stock_value": "262.50",
-    "reorder_status": "No",
-    "created_at": "2026-03-25T08:00:00Z",
-    "updated_at": "2026-03-25T08:05:00Z"
-  },
-  "product_name": "Zinc Bolt M8",
-  "barcode": "SN-A1B2C3",
-  "site": "Warehouse A",
-  "location": "A1-Shelf-5",
   "transaction_type": "Receive",
-  "quantity": 25,
-  "total_value": "350.00",
   "performed_by": 2,
   "performed_by_username": "staff_user",
-  "transaction_date": "2026-03-25T08:05:00Z"
+  "total_transaction_value": "262.50",
+  "items": [
+    {
+      "id": 1,
+      "inventory": 1,
+      "product_name": "Zinc Bolt M8",
+      "quantity": 10,
+      "cost_per_unit": "14.00",
+      "line_total": "140.00"
+    },
+    {
+      "id": 2,
+      "inventory": 3,
+      "product_name": "Hex Nut M8",
+      "quantity": 5,
+      "cost_per_unit": "8.50",
+      "line_total": "42.50"
+    },
+    {
+      "id": 3,
+      "inventory": 7,
+      "product_name": "Steel Washer",
+      "quantity": 20,
+      "cost_per_unit": "4.00",
+      "line_total": "80.00"
+    }
+  ],
+  "transaction_date": "2026-03-26T10:00:00Z"
 }
 ```
 
 ### Validation Errors
+
+**No items sent (400)**
+```json
+{ "items": "At least one item is required." }
+```
+
+**Invalid transaction type (400)**
+```json
+{ "transaction_type": "Must be Receive or Sale." }
+```
+
+**Per-item errors (400)**
+```json
+{
+  "items": [
+    { "item": 2, "quantity": "Sale quantities must be negative." },
+    { "item": 3, "quantity": "Insufficient stock. Current balance is only 4 units." }
+  ]
+}
+```
+
 | Scenario | Error |
 |----------|-------|
-| Sale quantity is positive | `"Sales must be recorded as negative numbers."` |
+| Sale quantity is positive or zero | `"Sale quantities must be negative."` |
 | Sale exceeds current stock | `"Insufficient stock. Current balance is only X units."` |
-| Receive quantity is negative | `"Receives must be recorded as positive numbers."` |
+| Receive quantity is negative or zero | `"Receive quantities must be positive."` |
 
 ### Frontend flow (transaction page)
-1. User types product name → `GET /api/inventory?search=<term>` → populate dropdown
-2. User selects inventory record, enters quantity and type
-3. `POST /api/transactions` with `{ inventory, quantity, transaction_type }`
+1. User selects `Receive` or `Sale` — this locks the type for all items
+2. User searches products → `GET /api/inventory?search=<term>` → add items to the list
+3. User enters quantity for each item
+4. `POST /api/transactions` with `{ transaction_type, items: [{ inventory, quantity }, ...] }`
 
 ---
 
 ## 9. Scan Transaction (Stock In / Out via Barcode)
-Create a transaction by scanning a product barcode. The frontend handles the camera scan and sends the barcode to this endpoint.
+Create a **single-item** transaction by scanning a product barcode. The frontend handles the camera and sends the barcode to this endpoint.
 
 - **Endpoint:** `POST /api/transactions/scan`
 - **Auth required:** Yes
@@ -415,7 +442,7 @@ Create a transaction by scanning a product barcode. The frontend handles the cam
 | `inventory_id` | Conditional | Required only if the product has multiple inventory records (different sites/locations) |
 
 ### Response (201 Created)
-Same shape as `POST /api/transactions` — full transaction object with `total_value`, `inventory_details`, etc.
+Same shape as `POST /api/transactions` — full transaction object with one item in the `items` array.
 
 ### Error Responses
 
@@ -449,11 +476,11 @@ Same shape as `POST /api/transactions` — full transaction object with `total_v
 
 **Insufficient stock for Sale (400)**
 ```json
-{ "quantity": "Insufficient stock. Current balance is only X units." }
+{ "items": [ { "item": 1, "quantity": "Insufficient stock. Current balance is only X units." } ] }
 ```
 
 ### Frontend flow (scan page)
 1. Camera scans barcode → `POST /api/transactions/scan` with `{ barcode, transaction_type, quantity }`
 2. If **400 with inventory list** → show site picker → re-submit with `inventory_id`
 3. If **404** → show "Unknown barcode" or "Not in inventory" message
-4. If **201** → show success with `total_value` and updated stock
+4. If **201** → show success with `total_transaction_value` and updated stock
