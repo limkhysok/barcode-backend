@@ -17,11 +17,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'inventory', 'inventory_details',
             'product_name', 'barcode', 'site', 'location',
-            'transaction_type', 'quantity',
+            'transaction_type', 'quantity', 'total_value',
             'performed_by', 'performed_by_username',
             'transaction_date',
         ]
-        read_only_fields = ['performed_by', 'transaction_date']
+        read_only_fields = ['performed_by', 'transaction_date', 'total_value']
 
     def validate(self, data):
         """ Check that sale quantity does not exceed current stock """
@@ -47,11 +47,16 @@ class TransactionSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        # Automatically assign the request user if not provided in validated_data
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             validated_data['performed_by'] = request.user
-            
+
+        # Auto-calculate total_value = |quantity| x cost_per_unit
+        from decimal import Decimal
+        inventory = validated_data['inventory']
+        cost = inventory.product.cost_per_unit or Decimal('0.00')
+        validated_data['total_value'] = abs(validated_data['quantity']) * cost
+
         transaction = super().create(validated_data)
         
         # Update Inventory stock based on transaction

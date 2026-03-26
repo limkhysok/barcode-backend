@@ -18,6 +18,7 @@ class Transaction(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
     )
 
+    total_value = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     transaction_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:

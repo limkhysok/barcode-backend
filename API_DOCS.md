@@ -302,7 +302,13 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 Log stock movements. Creating a transaction automatically updates the linked inventory balance.
 
 - **Base Endpoint:** `/api/transactions`
-- **Methods:** `GET` / `POST` / `DELETE`
+- **Methods:**
+  - `GET /api/transactions` — List all transactions
+  - `POST /api/transactions` — Create a new transaction
+  - `GET /api/transactions/<id>` — Retrieve a transaction by id
+  - `PUT /api/transactions/<id>` — Replace a transaction by id
+  - `PATCH /api/transactions/<id>` — Update part of a transaction by id
+  - `DELETE /api/transactions/<id>` — Delete a transaction by id
 
 ### Query Parameters (GET list)
 | Param | Description |
@@ -338,16 +344,36 @@ When a transaction is posted:
 {
   "id": 1,
   "inventory": 1,
-  "inventory_details": { ... },
+  "inventory_details": {
+    "id": 1,
+    "product": 1,
+    "product_details": {
+      "id": 1,
+      "barcode": "SN-A1B2C3",
+      "product_name": "Zinc Bolt M8",
+      "category": "Fasteners",
+      "supplier": "CTK Industrial",
+      "cost_per_unit": "0.50",
+      "reorder_level": 100
+    },
+    "site": "Warehouse A",
+    "location": "A1-Shelf-5",
+    "quantity_on_hand": 525,
+    "stock_value": "262.50",
+    "reorder_status": "No",
+    "created_at": "2026-03-25T08:00:00Z",
+    "updated_at": "2026-03-25T08:05:00Z"
+  },
   "product_name": "Zinc Bolt M8",
   "barcode": "SN-A1B2C3",
   "site": "Warehouse A",
   "location": "A1-Shelf-5",
   "transaction_type": "Receive",
   "quantity": 25,
+  "total_value": "350.00",
   "performed_by": 2,
   "performed_by_username": "staff_user",
-  "transaction_date": "2026-03-25T08:00:00Z"
+  "transaction_date": "2026-03-25T08:05:00Z"
 }
 ```
 
