@@ -96,3 +96,38 @@ class TransactionSerializer(serializers.ModelSerializer):
             inventory.refresh_stats()
 
         return transaction
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+
+        # Update top-level fields
+        instance.transaction_type = validated_data.get('transaction_type', instance.transaction_type)
+        instance.save()
+
+        if items_data is not None:
+            # Reverse inventory effects of all existing items
+            for existing_item in instance.items.all():
+                inventory = existing_item.inventory
+                inventory.quantity_on_hand -= existing_item.quantity
+                inventory.refresh_stats()
+
+            # Delete all existing items
+            instance.items.all().delete()
+
+            # Recreate items and apply new inventory effects
+            for item_data in items_data:
+                inventory = item_data['inventory']
+                quantity = item_data['quantity']
+                cost_per_unit = inventory.product.cost_per_unit or Decimal('0.00')
+
+                TransactionItem.objects.create(
+                    transaction=instance,
+                    inventory=inventory,
+                    quantity=quantity,
+                    cost_per_unit=cost_per_unit,
+                )
+
+                inventory.quantity_on_hand += quantity
+                inventory.refresh_stats()
+
+        return instance
