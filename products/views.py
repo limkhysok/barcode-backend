@@ -1,4 +1,7 @@
+from django.db.models.deletion import ProtectedError
 from rest_framework import viewsets, permissions
+from rest_framework.response import Response
+from rest_framework import status
 from .models import Product
 from .serializers import ProductSerializer
 
@@ -10,4 +13,13 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {"detail": "Cannot delete this product because it has linked transaction history."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         

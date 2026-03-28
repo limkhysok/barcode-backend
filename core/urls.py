@@ -16,18 +16,19 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 
 urlpatterns = [
+    # Redirect root to a useful entry point
     path("", RedirectView.as_view(url="api/auth/")),
-    path("admin/", admin.site.urls),
+    # Admin auth
+    path("admin/", admin.site.urls),  # Correct
+    # User auth
     path("api/auth/", include("users.urls")),
-    path("api/auth", include("users.urls")),
-    path("api/products/", include("products.urls")),
-    path("api/products", include("products.urls")),
-    path("api/inventory/", include("inventory.urls")),
-    path("api/inventory", include("inventory.urls")),
-    path("api/transactions/", include("transactions.urls")),
-    path("api/transactions", include("transactions.urls")),
+    re_path(r"^api/products/?", include("products.urls")),
+    path("api/inventory/", include("inventory.urls")),  
+    path("api/inventory", include("inventory.urls")),  # Correct
+    path("api/transactions/", include("transactions.urls")),  
+    path("api/transactions", include("transactions.urls")),  # Correct
 ]

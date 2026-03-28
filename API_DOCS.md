@@ -95,12 +95,11 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 
 - **Base Endpoint:** `/api/products`
 - **Methods:**
-  - `GET /api/products` — List all products
-  - `POST /api/products` — Create a new product
-  - `GET /api/products/<id>` — Retrieve a product by id
-  - `PUT /api/products/<id>` — Replace a product by id
-  - `PATCH /api/products/<id>` — Update part of a product by id
-  - `DELETE /api/products/<id>` — Delete a product by id
+  - `GET /api/products` — List all products → `200 OK`
+  - `GET /api/products/{id}` — Retrieve a product → `200 OK`
+  - `POST /api/products` — Create a new product → `201 Created`
+  - `PUT /api/products/{id}` — Replace a product → `200 OK`
+  - `DELETE /api/products/{id}` — Delete a product → `204 No Content`
 
 > **Note:** The `<id>` in the URL is the product's `id` field (the primary key in the database and in API responses).
 
@@ -132,7 +131,7 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/product
 
 Category choices: `Fasteners`, `Accessories`
 
-### Response Example (POST/GET)
+#### Success (201 Created)
 ```json
 {
   "id": 1,
@@ -148,23 +147,52 @@ Category choices: `Fasteners`, `Accessories`
 }
 ```
 
+#### Errors (400 Bad Request)
+| Scenario | Response |
+|----------|----------|
+| `product_name` missing | `{ "product_name": ["This field may not be blank."] }` |
+| `supplier` missing | `{ "supplier": ["This field may not be blank."] }` |
+| Invalid `category` | `{ "category": ["\"X\" is not a valid choice."] }` |
+| Duplicate `barcode` | `{ "barcode": ["product with this barcode already exists."] }` |
+
+---
+
 ### Retrieve Product (GET)
-`GET /api/products/<id>`
+`GET /api/products/{id}`
 
-### Update Product (PUT/PATCH)
-`PUT /api/products/<id>` or `PATCH /api/products/<id>`
+#### Success (200 OK) — returns the product object above
 
-#### Example PATCH payload
-```json
-{
-  "product_name": "Updated Name"
-}
-```
+#### Errors
+| Status | Response |
+|--------|----------|
+| `404 Not Found` | `{ "detail": "No Product matches the given query." }` |
+
+---
+
+### Update Product (PUT / PATCH)
+`PUT /api/products/{id}` — full replace
+`PATCH /api/products/{id}` — partial update
+
+#### Success (200 OK) — returns the updated product object
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | Invalid field value | `{ "field": ["error message"] }` |
+| `404 Not Found` | Product not found | `{ "detail": "No Product matches the given query." }` |
+
+---
 
 ### Delete Product (DELETE)
-`DELETE /api/products/<id>`
+`DELETE /api/products/{id}`
 
-> All detail, update, and delete operations require the correct product `id` in the URL. If the product does not exist, a 404 Not Found will be returned.
+#### Success (204 No Content) — empty body
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | Has linked transaction history | `{ "detail": "Cannot delete this product because it has linked transaction history." }` |
+| `404 Not Found` | Product not found | `{ "detail": "No Product matches the given query." }` |
 
 ---
 
