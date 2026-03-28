@@ -19,9 +19,10 @@ class Product(models.Model):
     id = models.BigAutoField(primary_key=True)
 
     barcode = models.CharField(
-        max_length=20, 
-        unique=True, 
+        max_length=20,
+        unique=True,
         default=generate_barcode,
+        db_collation='utf8mb4_bin',
         help_text="Barcode format: SN-XXXXXX"
     )
     product_name = models.CharField(max_length=255)

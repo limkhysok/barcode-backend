@@ -147,13 +147,13 @@ Category choices: `Fasteners`, `Accessories`
 }
 ```
 
-#### Errors (400 Bad Request)
-| Scenario | Response |
-|----------|----------|
-| `product_name` missing | `{ "product_name": ["This field may not be blank."] }` |
-| `supplier` missing | `{ "supplier": ["This field may not be blank."] }` |
-| Invalid `category` | `{ "category": ["\"X\" is not a valid choice."] }` |
-| Duplicate `barcode` | `{ "barcode": ["product with this barcode already exists."] }` |
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | `product_name` missing | `{ "product_name": ["This field may not be blank."] }` |
+| `400 Bad Request` | `supplier` missing | `{ "supplier": ["This field may not be blank."] }` |
+| `400 Bad Request` | Invalid `category` | `{ "category": ["\"X\" is not a valid choice."] }` |
+| `409 Conflict` | Duplicate `barcode` | `{ "detail": "A product with this barcode already exists." }` |
 
 ---
 
