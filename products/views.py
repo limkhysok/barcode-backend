@@ -19,7 +19,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:
             return Response(
-                {"detail": "Cannot delete this product because it has linked transaction history."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": "Cannot delete product with existing transactions."},
+                status=status.HTTP_409_CONFLICT,
             )
         

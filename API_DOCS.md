@@ -191,7 +191,7 @@ Category choices: `Fasteners`, `Accessories`
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `400 Bad Request` | Has linked transaction history | `{ "detail": "Cannot delete this product because it has linked transaction history." }` |
+| `409 Conflict` | Has linked transactions | `{ "detail": "Cannot delete product with existing transactions." }` |
 | `404 Not Found` | Product not found | `{ "detail": "No Product matches the given query." }` |
 
 ---
