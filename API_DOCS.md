@@ -116,8 +116,9 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 **Pagination**
 | Param | Options | Default |
 |-------|---------|---------|
-| `page=<n>` | Any page number | `1` |
 | `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | `20` |
+
+> Navigate pages via the `next` / `previous` URLs in the response — no need to manually pass `page`.
 
 **Filter**
 | Param | Options |

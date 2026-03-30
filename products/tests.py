@@ -8,6 +8,7 @@ from products.models import Product
 from inventory.models import Inventory
 
 User = get_user_model()
+LIST_URL  = '/api/v1/products/'
 STATS_URL = '/api/v1/products/stats'
 
 
@@ -127,3 +128,120 @@ class ProductStatsTests(APITestCase):
         Product.objects.filter(category='Accessories').delete()
         res = self.client.get(STATS_URL)
         self.assertNotIn('Accessories', res.data['by_category'])
+
+
+class ProductListTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='tester', password='testpass123')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {make_token(self.user)}')
+
+        # 3 Fasteners
+        self.f1 = Product.objects.create(
+            product_name='Bolt M6', category='Fasteners',
+            cost_per_unit=Decimal('0.30'), reorder_level=5, supplier='CTK',
+        )
+        self.f2 = Product.objects.create(
+            product_name='Bolt M8', category='Fasteners',
+            cost_per_unit=Decimal('0.50'), reorder_level=20, supplier='CTK',
+        )
+        self.f3 = Product.objects.create(
+            product_name='Nut M6', category='Fasteners',
+            cost_per_unit=Decimal('0.20'), reorder_level=10, supplier='CTK',
+        )
+        # 2 Accessories
+        self.a1 = Product.objects.create(
+            product_name='Safety Gloves', category='Accessories',
+            cost_per_unit=Decimal('5.00'), reorder_level=3, supplier='CTK',
+        )
+        self.a2 = Product.objects.create(
+            product_name='Hard Hat', category='Accessories',
+            cost_per_unit=Decimal('12.00'), reorder_level=8, supplier='CTK',
+        )
+
+    # --- page_size ---
+
+    def test_default_page_size_is_20(self):
+        res = self.client.get(LIST_URL)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('results', res.data)
+        self.assertIn('count', res.data)
+
+    def test_page_size_all_returns_every_product(self):
+        res = self.client.get(LIST_URL, {'page_size': 'all'})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['count'], 5)
+        self.assertEqual(len(res.data['results']), 5)
+        self.assertIsNone(res.data['next'])
+        self.assertIsNone(res.data['previous'])
+
+    def test_page_size_all_includes_products_beyond_default_20(self):
+        for i in range(20):
+            Product.objects.create(
+                product_name=f'Extra {i}', category='Fasteners',
+                cost_per_unit=Decimal('1.00'), reorder_level=5, supplier='CTK',
+            )
+        res = self.client.get(LIST_URL, {'page_size': 'all'})
+        self.assertEqual(len(res.data['results']), 25)
+
+    def test_page_size_50_accepted(self):
+        res = self.client.get(LIST_URL, {'page_size': 50})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    # --- category filter ---
+
+    def test_filter_by_fasteners(self):
+        res = self.client.get(LIST_URL, {'category': 'Fasteners'})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['count'], 3)
+        categories = {p['category'] for p in res.data['results']}
+        self.assertEqual(categories, {'Fasteners'})
+
+    def test_filter_by_accessories(self):
+        res = self.client.get(LIST_URL, {'category': 'Accessories'})
+        self.assertEqual(res.data['count'], 2)
+        categories = {p['category'] for p in res.data['results']}
+        self.assertEqual(categories, {'Accessories'})
+
+    def test_filter_category_case_insensitive(self):
+        res = self.client.get(LIST_URL, {'category': 'fasteners'})
+        self.assertEqual(res.data['count'], 3)
+
+    # --- ordering ---
+
+    def test_ordering_cost_low_to_high(self):
+        res = self.client.get(LIST_URL, {'ordering': 'cost_per_unit', 'page_size': 'all'})
+        costs = [Decimal(str(p['cost_per_unit'])) for p in res.data['results']]
+        self.assertEqual(costs, sorted(costs))
+
+    def test_ordering_cost_high_to_low(self):
+        res = self.client.get(LIST_URL, {'ordering': '-cost_per_unit', 'page_size': 'all'})
+        costs = [Decimal(str(p['cost_per_unit'])) for p in res.data['results']]
+        self.assertEqual(costs, sorted(costs, reverse=True))
+
+    def test_ordering_reorder_level_low_to_high(self):
+        res = self.client.get(LIST_URL, {'ordering': 'reorder_level', 'page_size': 'all'})
+        levels = [p['reorder_level'] for p in res.data['results']]
+        self.assertEqual(levels, sorted(levels))
+
+    def test_ordering_reorder_level_high_to_low(self):
+        res = self.client.get(LIST_URL, {'ordering': '-reorder_level', 'page_size': 'all'})
+        levels = [p['reorder_level'] for p in res.data['results']]
+        self.assertEqual(levels, sorted(levels, reverse=True))
+
+    # --- combined ---
+
+    def test_category_and_ordering_combined(self):
+        res = self.client.get(LIST_URL, {
+            'category': 'Fasteners',
+            'ordering': 'cost_per_unit',
+            'page_size': 'all',
+        })
+        self.assertEqual(res.data['count'], 3)
+        costs = [Decimal(str(p['cost_per_unit'])) for p in res.data['results']]
+        self.assertEqual(costs, sorted(costs))
+
+    def test_category_and_page_size_combined(self):
+        res = self.client.get(LIST_URL, {'category': 'Accessories', 'page_size': 50})
+        self.assertEqual(res.data['count'], 2)
+        self.assertEqual(len(res.data['results']), 2)

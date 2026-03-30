@@ -39,6 +39,9 @@ class Product(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
 
+    class Meta:
+        ordering = ['id']
+
     def __str__(self):
         # Fixed self.productid -> self.id
         return f"#{self.id} - {self.product_name} ({self.barcode})"
