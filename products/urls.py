@@ -1,10 +1,9 @@
 # urls.py
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from .views import ProductViewSet
 
-# Remove trailing_slash=False to stick to Django's cleaner default behavior
-router = DefaultRouter(trailing_slash=False)
+router = SimpleRouter()
 router.register(r'', ProductViewSet, basename='product')
 
 urlpatterns = [
