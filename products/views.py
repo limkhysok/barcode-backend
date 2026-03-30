@@ -1,4 +1,5 @@
 from django.db import IntegrityError
+from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Sum
 from rest_framework import viewsets, permissions
@@ -13,8 +14,11 @@ from .serializers import ProductSerializer
 ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
 
 ALLOWED_ORDERINGS = {
+    'product_name', '-product_name',
+    'supplier', '-supplier',
     'cost_per_unit', '-cost_per_unit',
     'reorder_level', '-reorder_level',
+    'created_at', '-created_at',
 }
 
 
@@ -36,7 +40,7 @@ class ProductPagination(PageNumberPagination):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
+    queryset = Product.objects.select_related('created_by')
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = ProductPagination
@@ -44,6 +48,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         params = self.request.query_params
+
+        search = params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(barcode__icontains=search) |
+                Q(product_name__icontains=search) |
+                Q(supplier__icontains=search)
+            )
 
         category = params.get('category')
         if category:
@@ -55,25 +67,21 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request):
         queryset = self.filter_queryset(self.get_queryset())
 
         if request.query_params.get('page_size', '').lower() == 'all':
             serializer = self.get_serializer(queryset, many=True)
             return Response({
-                'count': queryset.count(),
+                'count': len(serializer.data),
                 'next': None,
                 'previous': None,
                 'results': serializer.data,
             })
 
         page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
@@ -87,9 +95,12 @@ class ProductViewSet(viewsets.ModelViewSet):
             .order_by('category')
         )
 
+        total_products = sum(row['count'] for row in by_category_qs)
+        total_value = sum(row['total_value'] or 0 for row in by_category_qs)
+
         return Response({
-            "total_products": Product.objects.count(),
-            "total_value": Product.objects.aggregate(t=Sum('cost_per_unit'))['t'] or 0,
+            "total_products": total_products,
+            "total_value": total_value,
             "by_category": {
                 row['category']: {
                     "count": row['count'],

@@ -96,17 +96,35 @@ Retrieve or update the currently logged-in user.
 
 ## 5. Product Management
 
-
 CRUD operations on products. **All endpoints require authentication with a JWT access token.**
 
 - **Base Endpoint:** `/api/v1/products/`
 - **Methods:**
   - `GET /api/v1/products/` — List all products (paginated) → `200 OK`
-  - `GET /api/v1/products/stats` — Overview stats (not paginated) → `200 OK`
+  - `GET /api/v1/products/stats/` — Overview stats (not paginated) → `200 OK`
   - `GET /api/v1/products/{id}/` — Retrieve a product → `200 OK`
   - `POST /api/v1/products/` — Create a new product → `201 Created`
-  - `PUT /api/v1/products/{id}/` — Replace a product → `200 OK`
+  - `PUT /api/v1/products/{id}/` — Full replace of a product → `200 OK`
+  - `PATCH /api/v1/products/{id}/` — Partial update of a product → `200 OK`
   - `DELETE /api/v1/products/{id}/` — Delete a product → `204 No Content`
+
+> **Note:** The `{id}` in the URL is the product's `id` field (the primary key in the database and in API responses).
+
+### Authentication Required
+All product endpoints require the following header:
+
+```
+Authorization: Bearer <access_token>
+```
+
+You must first obtain an access token via the login endpoint (`POST /api/v1/users/login`).
+
+#### Example using curl:
+```
+curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/products/
+```
+
+---
 
 ### List Products (GET)
 `GET /api/v1/products/` — returns page 1 by default (20 rows per page).
@@ -120,6 +138,11 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 
 > Navigate pages via the `next` / `previous` URLs in the response — no need to manually pass `page`.
 
+**Search**
+| Param | Searches across |
+|-------|----------------|
+| `search=<term>` | `barcode`, `product_name`, `supplier` (case-insensitive, partial match) |
+
 **Filter**
 | Param | Options |
 |-------|---------|
@@ -128,28 +151,36 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 **Ordering**
 | Param | Description |
 |-------|-------------|
+| `ordering=product_name` | Product name — A to Z |
+| `ordering=-product_name` | Product name — Z to A |
+| `ordering=supplier` | Supplier — A to Z |
+| `ordering=-supplier` | Supplier — Z to A |
 | `ordering=cost_per_unit` | Cost per unit — Low to High |
 | `ordering=-cost_per_unit` | Cost per unit — High to Low |
 | `ordering=reorder_level` | Reorder level — Low to High |
 | `ordering=-reorder_level` | Reorder level — High to Low |
+| `ordering=created_at` | Oldest first |
+| `ordering=-created_at` | Newest first |
 
 **Examples**
 ```
-GET /api/v1/products?page_size=50
-GET /api/v1/products?category=Fasteners&ordering=cost_per_unit
-GET /api/v1/products?category=Accessories&ordering=-reorder_level&page_size=all
+GET /api/v1/products/?page_size=50
+GET /api/v1/products/?search=bolt
+GET /api/v1/products/?search=CTK&category=Fasteners
+GET /api/v1/products/?category=Fasteners&ordering=cost_per_unit
+GET /api/v1/products/?category=Accessories&ordering=-reorder_level&page_size=all
 ```
 
 #### Response (200 OK)
 ```json
 {
   "count": 85,
-  "next": "http://localhost:8000/api/v1/products?page=2",
+  "next": "http://localhost:8000/api/v1/products/?page=2",
   "previous": null,
   "results": [
     {
       "id": 1,
-      "barcode": "SN-A1B2C3",
+      "barcode": "4006381333931",
       "product_name": "Zinc Bolt M8",
       "category": "Fasteners",
       "cost_per_unit": "0.50",
@@ -166,7 +197,7 @@ GET /api/v1/products?category=Accessories&ordering=-reorder_level&page_size=all
 ---
 
 ### Product Stats (GET)
-`GET /api/v1/products/stats` — returns aggregate overview for the dashboard. Not paginated.
+`GET /api/v1/products/stats/` — returns aggregate overview for the dashboard. Not paginated.
 
 #### Response (200 OK)
 ```json
@@ -189,34 +220,20 @@ GET /api/v1/products?category=Accessories&ordering=-reorder_level&page_size=all
 | Field | Description |
 |-------|-------------|
 | `total_products` | Total number of products in the system |
-| `total_value` | Sum of all inventory `stock_value` across all categories |
+| `total_value` | Sum of `cost_per_unit` across all products |
 | `by_category.*.count` | Number of products in that category |
-| `by_category.*.total_value` | Sum of inventory `stock_value` for that category |
-
-> `total_value` is derived from `quantity_on_hand × cost_per_unit` per inventory record, kept up to date on every transaction.
+| `by_category.*.total_value` | Sum of `cost_per_unit` for products in that category |
 
 ---
 
-> **Note:** The `<id>` in the URL is the product's `id` field (the primary key in the database and in API responses).
-
-### Authentication Required
-All product endpoints require the following header:
-
-```
-Authorization: Bearer <access_token>
-```
-
-You must first obtain an access token via the login endpoint (`POST /api/v1/users/login`).
-
-#### Example using curl:
-```
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/products/
-```
-
 ### Create Product (POST)
-`barcode` is optional — auto-generated as `SN-XXXXXX` if omitted.
+`POST /api/v1/products/`
+
+`barcode` is the **physical barcode scanned from the product** — it is required and must be unique. It cannot be changed after creation.
+
 ```json
 {
+  "barcode": "4006381333931",
   "product_name": "Zinc Bolt M8",
   "category": "Fasteners",
   "cost_per_unit": 0.50,
@@ -231,7 +248,7 @@ Category choices: `Fasteners`, `Accessories`
 ```json
 {
   "id": 1,
-  "barcode": "SN-A1B2C3",
+  "barcode": "4006381333931",
   "product_name": "Zinc Bolt M8",
   "category": "Fasteners",
   "cost_per_unit": "0.50",
@@ -246,6 +263,7 @@ Category choices: `Fasteners`, `Accessories`
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
+| `400 Bad Request` | `barcode` missing | `{ "barcode": ["This field is required."] }` |
 | `400 Bad Request` | `product_name` missing | `{ "product_name": ["This field may not be blank."] }` |
 | `400 Bad Request` | `supplier` missing | `{ "supplier": ["This field may not be blank."] }` |
 | `400 Bad Request` | Invalid `category` | `{ "category": ["\"X\" is not a valid choice."] }` |
@@ -266,8 +284,21 @@ Category choices: `Fasteners`, `Accessories`
 ---
 
 ### Update Product (PUT / PATCH)
-`PUT /api/v1/products/{id}/` — full replace
-`PATCH /api/v1/products/{id}/` — partial update
+`PUT /api/v1/products/{id}/` — full replace (all fields required except `barcode`)
+`PATCH /api/v1/products/{id}/` — partial update (only send fields to change)
+
+> `barcode` is **read-only after creation** — it is silently ignored if included in the request body.
+
+#### PUT Payload
+```json
+{
+  "product_name": "Zinc Bolt M8 Updated",
+  "category": "Fasteners",
+  "cost_per_unit": 0.75,
+  "reorder_level": 150,
+  "supplier": "New Supplier Ltd"
+}
+```
 
 #### Success (200 OK) — returns the updated product object
 
@@ -733,5 +764,3 @@ Same shape as `POST /api/transactions` — full transaction object with one item
 3. If **404** → show "Unknown barcode" or "Not in inventory" message
 4. If **201** → show success with `total_transaction_value` and updated stock
 
-
-# http://127.0.0.1:8000/api/v1/products/ # correct
