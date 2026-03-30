@@ -102,6 +102,7 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 - **Base Endpoint:** `/api/v1/products/`
 - **Methods:**
   - `GET /api/v1/products/` — List all products (paginated) → `200 OK`
+  - `GET /api/v1/products/stats` — Overview stats (not paginated) → `200 OK`
   - `GET /api/v1/products/{id}/` — Retrieve a product → `200 OK`
   - `POST /api/v1/products/` — Create a new product → `201 Created`
   - `PUT /api/v1/products/{id}/` — Replace a product → `200 OK`
@@ -132,6 +133,40 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
   ]
 }
 ```
+
+---
+
+### Product Stats (GET)
+`GET /api/v1/products/stats` — returns aggregate overview for the dashboard. Not paginated.
+
+#### Response (200 OK)
+```json
+{
+  "total_products": 85,
+  "total_value": "13250.00",
+  "by_category": {
+    "Fasteners": {
+      "count": 60,
+      "total_value": "9800.00"
+    },
+    "Accessories": {
+      "count": 25,
+      "total_value": "3450.00"
+    }
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `total_products` | Total number of products in the system |
+| `total_value` | Sum of all inventory `stock_value` across all categories |
+| `by_category.*.count` | Number of products in that category |
+| `by_category.*.total_value` | Sum of inventory `stock_value` for that category |
+
+> `total_value` is derived from `quantity_on_hand × cost_per_unit` per inventory record, kept up to date on every transaction.
+
+---
 
 > **Note:** The `<id>` in the URL is the product's `id` field (the primary key in the database and in API responses).
 

@@ -1,5 +1,7 @@
 from django.db.models.deletion import ProtectedError
+from django.db.models import Count, Sum
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Product
@@ -10,6 +12,37 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        """
+        GET /api/v1/products/stats/
+        Returns aggregate overview — not paginated.
+        """
+        by_category = (
+            Product.objects.values('category')
+            .annotate(
+                count=Count('id'),
+                total_value=Sum('inventory_records__stock_value'),
+            )
+            .order_by('category')
+        )
+
+        total_value = sum(
+            row['total_value'] or 0 for row in by_category
+        )
+
+        return Response({
+            "total_products": Product.objects.count(),
+            "total_value": total_value,
+            "by_category": {
+                row['category']: {
+                    "count": row['count'],
+                    "total_value": row['total_value'] or 0,
+                }
+                for row in by_category
+            },
+        })
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
