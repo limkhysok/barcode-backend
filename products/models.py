@@ -1,13 +1,5 @@
 from django.db import models
 from django.conf import settings
-import random
-import string
-
-def generate_barcode():
-    """ Generate a random string like SN-XXXXXX (6 alphanumeric chars) """
-    chars = string.ascii_uppercase + string.digits
-    code = ''.join(random.choices(chars, k=6))
-    return f"SN-{code}"
 
 class Product(models.Model):
     CATEGORY_CHOICES = [
@@ -18,9 +10,8 @@ class Product(models.Model):
     barcode = models.CharField(
         max_length=20,
         unique=True,
-        default=generate_barcode,
         db_collation='utf8mb4_bin',
-        help_text="Barcode format: SN-XXXXXX"
+        help_text="Physical barcode scanned from the product. Must be unique."
     )
     product_name = models.CharField(max_length=255)
     category = models.CharField(

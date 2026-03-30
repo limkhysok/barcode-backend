@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Sum
 from rest_framework import viewsets, permissions
@@ -101,13 +102,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            if 'barcode' in serializer.errors:
-                return Response(
-                    {"detail": "A product with this barcode already exists."},
-                    status=status.HTTP_409_CONFLICT,
-                )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        self.perform_create(serializer)
+        try:
+            self.perform_create(serializer)
+        except IntegrityError:
+            return Response(
+                {"detail": "A product with this barcode already exists."},
+                status=status.HTTP_409_CONFLICT,
+            )
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
