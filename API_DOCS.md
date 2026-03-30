@@ -101,11 +101,37 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 
 - **Base Endpoint:** `/api/v1/products/`
 - **Methods:**
-  - `GET /api/products/` — List all products → `200 OK`
-  - `GET /api/products/{id}/` — Retrieve a product → `200 OK`
-  - `POST /api/products/` — Create a new product → `201 Created`
-  - `PUT /api/products/{id}/` — Replace a product → `200 OK`
-  - `DELETE /api/products/{id}/` — Delete a product → `204 No Content`
+  - `GET /api/v1/products/` — List all products (paginated) → `200 OK`
+  - `GET /api/v1/products/{id}/` — Retrieve a product → `200 OK`
+  - `POST /api/v1/products/` — Create a new product → `201 Created`
+  - `PUT /api/v1/products/{id}/` — Replace a product → `200 OK`
+  - `DELETE /api/v1/products/{id}/` — Delete a product → `204 No Content`
+
+### List Products (GET)
+`GET /api/v1/products/` — returns page 1 by default (20 items). Use `?page=2` for the next page.
+
+#### Response (200 OK)
+```json
+{
+  "count": 85,
+  "next": "http://localhost:8000/api/v1/products?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "barcode": "SN-A1B2C3",
+      "product_name": "Zinc Bolt M8",
+      "category": "Fasteners",
+      "cost_per_unit": "0.50",
+      "reorder_level": 100,
+      "supplier": "CTK Industrial",
+      "created_at": "2026-03-25T08:00:00Z",
+      "updated_at": "2026-03-25T08:00:00Z",
+      "created_by": 2
+    }
+  ]
+}
+```
 
 > **Note:** The `<id>` in the URL is the product's `id` field (the primary key in the database and in API responses).
 
@@ -208,6 +234,40 @@ Track stock levels across sites and locations. **All endpoints require authentic
 
 - **Base Endpoint:** `/api/v1/inventory/`
 - **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
+
+### List Inventory (GET)
+`GET /api/v1/inventory/` — returns page 1 by default (20 items). Use `?page=2` for the next page.
+
+#### Response (200 OK)
+```json
+{
+  "count": 42,
+  "next": "http://localhost:8000/api/v1/inventory?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "product": 1,
+      "product_details": {
+        "id": 1,
+        "barcode": "SN-A1B2C3",
+        "product_name": "Zinc Bolt M8",
+        "category": "Fasteners",
+        "supplier": "CTK Industrial",
+        "cost_per_unit": "0.50",
+        "reorder_level": 100
+      },
+      "site": "Warehouse A",
+      "location": "A1-Shelf-5",
+      "quantity_on_hand": 500,
+      "stock_value": "250.00",
+      "reorder_status": "No",
+      "created_at": "2026-03-25T08:00:00Z",
+      "updated_at": "2026-03-25T08:00:00Z"
+    }
+  ]
+}
+```
 
 > **Note:** All inventory endpoints require the following header:
 >
@@ -337,12 +397,35 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 
 - **Base Endpoint:** `/api/v1/transactions/`
 - **Methods:**
-  - `GET /api/v1/transactions/` — List all transactions
+  - `GET /api/v1/transactions/` — List all transactions (paginated)
   - `POST /api/v1/transactions/` — Create a new transaction with items
   - `GET /api/v1/transactions/<id>/` — Retrieve a transaction by id
   - `PUT /api/v1/transactions/<id>/` — Replace a transaction by id
   - `PATCH /api/v1/transactions/<id>/` — Update part of a transaction by id
   - `DELETE /api/v1/transactions/<id>/` — Delete a transaction by id
+
+### List Transactions (GET)
+`GET /api/v1/transactions/` — returns page 1 by default (20 items). Use `?page=2` for the next page.
+
+#### Response (200 OK)
+```json
+{
+  "count": 200,
+  "next": "http://localhost:8000/api/v1/transactions?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "transaction_type": "Receive",
+      "performed_by": 2,
+      "performed_by_username": "staff_user",
+      "total_transaction_value": "262.50",
+      "items": [ { "..." } ],
+      "transaction_date": "2026-03-26T10:00:00Z"
+    }
+  ]
+}
+```
 
 ### Query Parameters (GET list)
 | Param | Description |
