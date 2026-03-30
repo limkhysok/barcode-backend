@@ -27,7 +27,10 @@ Create a new user account.
   "id": 2,
   "username": "your_username",
   "email": "user@example.com",
-  "name": "Full Name"
+  "name": "Full Name",
+  "is_boss": false,
+  "is_staff": false,
+  "is_superuser": false
 }
 ```
 
@@ -66,7 +69,10 @@ Retrieve or update the currently logged-in user.
   "id": 2,
   "username": "your_username",
   "email": "user@example.com",
-  "name": "Full Name"
+  "name": "Full Name",
+  "is_boss": false,
+  "is_staff": false,
+  "is_superuser": false
 }
 ```
 
