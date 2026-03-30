@@ -19,28 +19,22 @@ class ProductViewSet(viewsets.ModelViewSet):
         GET /api/v1/products/stats/
         Returns aggregate overview — not paginated.
         """
-        by_category = (
+        # Per category: count + sum of cost_per_unit — query Product directly
+        by_category_qs = list(
             Product.objects.values('category')
-            .annotate(
-                count=Count('id'),
-                total_value=Sum('inventory_records__stock_value'),
-            )
+            .annotate(count=Count('id'), total_value=Sum('cost_per_unit'))
             .order_by('category')
-        )
-
-        total_value = sum(
-            row['total_value'] or 0 for row in by_category
         )
 
         return Response({
             "total_products": Product.objects.count(),
-            "total_value": total_value,
+            "total_value": Product.objects.aggregate(t=Sum('cost_per_unit'))['t'] or 0,
             "by_category": {
                 row['category']: {
                     "count": row['count'],
                     "total_value": row['total_value'] or 0,
                 }
-                for row in by_category
+                for row in by_category_qs
             },
         })
 

@@ -1,3 +1,4 @@
+from django.db.models import Sum, Count, Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -38,6 +39,46 @@ class InventoryViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(product__product_name__icontains=search)
 
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        """
+        GET /api/v1/inventory/stats
+        Returns aggregate overview — not paginated.
+        """
+        qs = Inventory.objects.all()
+
+        totals = qs.aggregate(
+            total_records=Count('id'),
+            total_quantity=Sum('quantity_on_hand'),
+            total_stock_value=Sum('stock_value'),
+            needs_reorder=Count('id', filter=Q(reorder_status='Yes')),
+        )
+
+        by_site = (
+            qs.values('site')
+            .annotate(
+                records=Count('id'),
+                total_quantity=Sum('quantity_on_hand'),
+                total_stock_value=Sum('stock_value'),
+            )
+            .order_by('site')
+        )
+
+        return Response({
+            "total_records": totals['total_records'],
+            "total_quantity_on_hand": totals['total_quantity'] or 0,
+            "total_stock_value": totals['total_stock_value'] or 0,
+            "needs_reorder": totals['needs_reorder'],
+            "by_site": {
+                row['site']: {
+                    "records": row['records'],
+                    "total_quantity_on_hand": row['total_quantity'] or 0,
+                    "total_stock_value": row['total_stock_value'] or 0,
+                }
+                for row in by_site
+            },
+        })
 
     @action(detail=False, methods=['get'], url_path='scan')
     def scan(self, request):

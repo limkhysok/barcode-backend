@@ -7,7 +7,7 @@
 3. No DB-level constraints for transaction integrity — relies entirely on application logic in the serializer's validate(). //done
 
 # 2 Design / Architecture
-1. No pagination — list endpoints (/api/products, /api/inventory, /api/transactions) can return unbounded results. Add DEFAULT_PAGINATION_CLASS in settings.
+1. No pagination — list endpoints (/api/products, /api/inventory, /api/transactions) can return unbounded results. Add DEFAULT_PAGINATION_CLASS in settings. // done
 
 2. No role-based permissions — all authenticated users have full CRUD access everywhere. No admin/staff/read-only distinction.
 

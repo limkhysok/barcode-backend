@@ -1,7 +1,8 @@
+from django.db.models import Count, Sum, F, ExpressionWrapper, DecimalField
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Transaction
+from .models import Transaction, TransactionItem
 from .serializers import TransactionSerializer
 from products.models import Product
 from inventory.models import Inventory
@@ -31,6 +32,46 @@ class TransactionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(items__inventory__product__product_name__icontains=search)
 
         return queryset.distinct()
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        """
+        GET /api/v1/transactions/stats
+        Returns aggregate overview — not paginated.
+        """
+        by_type = (
+            Transaction.objects.values('transaction_type')
+            .annotate(count=Count('id'))
+            .order_by('transaction_type')
+        )
+
+        line_total_expr = ExpressionWrapper(
+            F('quantity') * F('cost_per_unit'),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+        item_by_type = (
+            TransactionItem.objects
+            .values('transaction__transaction_type')
+            .annotate(total_value=Sum(line_total_expr))
+        )
+        # Build a lookup: { 'Receive': total_value, 'Sale': total_value }
+        value_by_type = {
+            row['transaction__transaction_type']: row['total_value'] or 0
+            for row in item_by_type
+        }
+
+        by_type_result = {}
+        for row in by_type:
+            t = row['transaction_type']
+            by_type_result[t] = {
+                "count": row['count'],
+                "total_value": value_by_type.get(t, 0),
+            }
+
+        return Response({
+            "total_transactions": Transaction.objects.count(),
+            "by_type": by_type_result,
+        })
 
     @action(detail=False, methods=['post'], url_path='scan')
     def scan(self, request):
