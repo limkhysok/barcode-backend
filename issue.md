@@ -1,6 +1,6 @@
 # 1 Minor Code Issues
 
-1. Duplicate URL registrations in core/urls.py lines 33–36 — both inventory/ and inventory are registered separately (and same for transactions). This is redundant since APPEND_SLASH=False is set.
+1. Duplicate URL registrations in core/urls.py lines 33–36 — both inventory/ and inventory are registered separately (and same for transactions). This is redundant since APPEND_SLASH=False is set. //done
 
 2. Redundant id = models.BigAutoField() in products/models.py — Django adds this automatically.
 

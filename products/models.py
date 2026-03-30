@@ -15,9 +15,6 @@ class Product(models.Model):
         ("Accessories", "Accessories"),
     ]
 
-    # Explicitly naming it 'id' is fine, but Django does this by default!
-    id = models.BigAutoField(primary_key=True)
-
     barcode = models.CharField(
         max_length=20,
         unique=True,
