@@ -109,7 +109,35 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
   - `DELETE /api/v1/products/{id}/` — Delete a product → `204 No Content`
 
 ### List Products (GET)
-`GET /api/v1/products/` — returns page 1 by default (20 items). Use `?page=2` for the next page.
+`GET /api/v1/products/` — returns page 1 by default (20 rows per page).
+
+#### Query Parameters
+
+**Pagination**
+| Param | Options | Default |
+|-------|---------|---------|
+| `page=<n>` | Any page number | `1` |
+| `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | `20` |
+
+**Filter**
+| Param | Options |
+|-------|---------|
+| `category=<name>` | `Fasteners`, `Accessories` |
+
+**Ordering**
+| Param | Description |
+|-------|-------------|
+| `ordering=cost_per_unit` | Cost per unit — Low to High |
+| `ordering=-cost_per_unit` | Cost per unit — High to Low |
+| `ordering=reorder_level` | Reorder level — Low to High |
+| `ordering=-reorder_level` | Reorder level — High to Low |
+
+**Examples**
+```
+GET /api/v1/products?page_size=50
+GET /api/v1/products?category=Fasteners&ordering=cost_per_unit
+GET /api/v1/products?category=Accessories&ordering=-reorder_level&page_size=all
+```
 
 #### Response (200 OK)
 ```json

@@ -2,16 +2,77 @@ from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Sum
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Product
 from .serializers import ProductSerializer
 
 
+ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
+
+ALLOWED_ORDERINGS = {
+    'cost_per_unit', '-cost_per_unit',
+    'reorder_level', '-reorder_level',
+}
+
+
+class ProductPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+
+    def get_page_size(self, request):
+        raw = request.query_params.get(self.page_size_query_param, '')
+        if raw.lower() == 'all':
+            return None
+        try:
+            size = int(raw)
+            if size in ALLOWED_PAGE_SIZES:
+                return size
+        except (ValueError, TypeError):
+            pass
+        return self.page_size
+
+
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = ProductPagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        params = self.request.query_params
+
+        category = params.get('category')
+        if category:
+            queryset = queryset.filter(category__iexact=category)
+
+        ordering = params.get('ordering')
+        if ordering in ALLOWED_ORDERINGS:
+            queryset = queryset.order_by(ordering)
+
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        if request.query_params.get('page_size', '').lower() == 'all':
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'count': queryset.count(),
+                'next': None,
+                'previous': None,
+                'results': serializer.data,
+            })
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
@@ -19,7 +80,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         GET /api/v1/products/stats/
         Returns aggregate overview — not paginated.
         """
-        # Per category: count + sum of cost_per_unit — query Product directly
         by_category_qs = list(
             Product.objects.values('category')
             .annotate(count=Count('id'), total_value=Sum('cost_per_unit'))
@@ -62,4 +122,3 @@ class ProductViewSet(viewsets.ModelViewSet):
                 {"detail": "Cannot delete product with existing transactions."},
                 status=status.HTTP_409_CONFLICT,
             )
-        
