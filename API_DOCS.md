@@ -9,7 +9,7 @@ This backend uses **Django Rest Framework** and **SimpleJWT** for secure authent
 ## 1. User Registration
 Create a new user account.
 
-- **Endpoint:** `POST /api/users/register`
+- **Endpoint:** `POST /api/v1/users/register`
 
 ### Payload
 ```json
@@ -35,7 +35,7 @@ Create a new user account.
 
 ## 2. User Login (Obtain Token)
 
-- **Endpoint:** `POST /api/users/login`
+- **Endpoint:** `POST /api/v1/users/login`
 
 ### Payload
 ```json
@@ -58,7 +58,7 @@ Create a new user account.
 ## 3. Get / Update Current User
 Retrieve or update the currently logged-in user.
 
-- **Endpoint:** `GET / PATCH / PUT /api/users/me`
+- **Endpoint:** `GET / PATCH / PUT /api/v1/users/me`
 
 ### Response (200 OK)
 ```json
@@ -74,7 +74,7 @@ Retrieve or update the currently logged-in user.
 
 ## 4. Token Refresh
 
-- **Endpoint:** `POST /api/users/token/refresh`
+- **Endpoint:** `POST /api/v1/users/token/refresh`
 
 ### Payload
 ```json
@@ -93,7 +93,7 @@ Retrieve or update the currently logged-in user.
 
 CRUD operations on products. **All endpoints require authentication with a JWT access token.**
 
-- **Base Endpoint:** `/api/products/`
+- **Base Endpoint:** `/api/v1/products/`
 - **Methods:**
   - `GET /api/products/` — List all products → `200 OK`
   - `GET /api/products/{id}/` — Retrieve a product → `200 OK`
@@ -110,11 +110,11 @@ All product endpoints require the following header:
 Authorization: Bearer <access_token>
 ```
 
-You must first obtain an access token via the login endpoint (`POST /api/users/login`).
+You must first obtain an access token via the login endpoint (`POST /api/v1/users/login`).
 
 #### Example using curl:
 ```
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/products/
+curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/products/
 ```
 
 ### Create Product (POST)
@@ -158,7 +158,7 @@ Category choices: `Fasteners`, `Accessories`
 ---
 
 ### Retrieve Product (GET)
-`GET /api/products/{id}/`
+`GET /api/v1/products/{id}/`
 
 #### Success (200 OK) — returns the product object above
 
@@ -170,8 +170,8 @@ Category choices: `Fasteners`, `Accessories`
 ---
 
 ### Update Product (PUT / PATCH)
-`PUT /api/products/{id}/` — full replace
-`PATCH /api/products/{id}/` — partial update
+`PUT /api/v1/products/{id}/` — full replace
+`PATCH /api/v1/products/{id}/` — partial update
 
 #### Success (200 OK) — returns the updated product object
 
@@ -184,7 +184,7 @@ Category choices: `Fasteners`, `Accessories`
 ---
 
 ### Delete Product (DELETE)
-`DELETE /api/products/{id}/`
+`DELETE /api/v1/products/{id}/`
 
 #### Success (204 No Content) — empty body
 
@@ -200,7 +200,7 @@ Category choices: `Fasteners`, `Accessories`
 
 Track stock levels across sites and locations. **All endpoints require authentication with a JWT access token.**
 
-- **Base Endpoint:** `/api/inventory/`
+- **Base Endpoint:** `/api/v1/inventory/`
 - **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
 
 > **Note:** All inventory endpoints require the following header:
@@ -213,7 +213,7 @@ Track stock levels across sites and locations. **All endpoints require authentic
 
 #### Example using curl:
 ```
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/inventory/
+curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inventory/
 ```
 
 ### Query Parameters (GET list)
@@ -262,7 +262,7 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/invento
 ## 7. Barcode Scan Lookup
 Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 
-- **Endpoint:** `GET /api/inventory/scan/?barcode=<barcode>`
+- **Endpoint:** `GET /api/v1/inventory/scan/?barcode=<barcode>`
 
 ### Responses
 
@@ -329,14 +329,14 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 ## 8. Transactions (Stock In / Out)
 Log stock movements. A single transaction has **one type** (`Receive` or `Sale`) and can contain **multiple items** across different inventory records. Creating a transaction automatically updates all linked inventory balances.
 
-- **Base Endpoint:** `/api/transactions/`
+- **Base Endpoint:** `/api/v1/transactions/`
 - **Methods:**
-  - `GET /api/transactions/` — List all transactions
-  - `POST /api/transactions/` — Create a new transaction with items
-  - `GET /api/transactions/<id>/` — Retrieve a transaction by id
-  - `PUT /api/transactions/<id>/` — Replace a transaction by id
-  - `PATCH /api/transactions/<id>/` — Update part of a transaction by id
-  - `DELETE /api/transactions/<id>/` — Delete a transaction by id
+  - `GET /api/v1/transactions/` — List all transactions
+  - `POST /api/v1/transactions/` — Create a new transaction with items
+  - `GET /api/v1/transactions/<id>/` — Retrieve a transaction by id
+  - `PUT /api/v1/transactions/<id>/` — Replace a transaction by id
+  - `PATCH /api/v1/transactions/<id>/` — Update part of a transaction by id
+  - `DELETE /api/v1/transactions/<id>/` — Delete a transaction by id
 
 ### Query Parameters (GET list)
 | Param | Description |
@@ -442,14 +442,14 @@ For each item when a transaction is posted:
 1. User selects `Receive` or `Sale` — this locks the type for all items
 2. User searches products → `GET /api/inventory?search=<term>` → add items to the list
 3. User enters quantity for each item
-4. `POST /api/transactions` with `{ transaction_type, items: [{ inventory, quantity }, ...] }`
+4. `POST /api/v1/transactions` with `{ transaction_type, items: [{ inventory, quantity }, ...] }`
 
 ---
 
 ## 9. Scan Transaction (Stock In / Out via Barcode)
 Create a **single-item** transaction by scanning a product barcode. The frontend handles the camera and sends the barcode to this endpoint.
 
-- **Endpoint:** `POST /api/transactions/scan/`
+- **Endpoint:** `POST /api/v1/transactions/scan/`
 - **Auth required:** Yes
 
 ### Payload
@@ -508,10 +508,10 @@ Same shape as `POST /api/transactions` — full transaction object with one item
 ```
 
 ### Frontend flow (scan page)
-1. Camera scans barcode → `POST /api/transactions/scan/` with `{ barcode, transaction_type, quantity }`
+1. Camera scans barcode → `POST /api/v1/transactions/scan/` with `{ barcode, transaction_type, quantity }`
 2. If **400 with inventory list** → show site picker → re-submit with `inventory_id`
 3. If **404** → show "Unknown barcode" or "Not in inventory" message
 4. If **201** → show success with `total_transaction_value` and updated stock
 
 
-# http://127.0.0.1:8000/api/products/ # correct
+# http://127.0.0.1:8000/api/v1/products/ # correct
