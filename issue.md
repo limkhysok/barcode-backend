@@ -2,9 +2,9 @@
 
 1. Duplicate URL registrations in core/urls.py lines 33–36 — both inventory/ and inventory are registered separately (and same for transactions). This is redundant since APPEND_SLASH=False is set. //done
 
-2. Redundant id = models.BigAutoField() in products/models.py — Django adds this automatically.
+2. Redundant id = models.BigAutoField() in products/models.py — Django adds this automatically. //done
 
-3. No DB-level constraints for transaction integrity — relies entirely on application logic in the serializer's validate().
+3. No DB-level constraints for transaction integrity — relies entirely on application logic in the serializer's validate(). //done
 
 # 2 Design / Architecture
 1. No pagination — list endpoints (/api/products, /api/inventory, /api/transactions) can return unbounded results. Add DEFAULT_PAGINATION_CLASS in settings.
