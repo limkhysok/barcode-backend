@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.urls import reverse
+
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -137,6 +137,69 @@ class InventoryListPageSizeTest(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         for record in res.data["results"]:
             self.assertIn("Test Product 1", record["product_details"]["product_name"])
+
+    # --- sorting and page size consistency ---
+
+    def test_sorting_and_page_size_consistency(self):
+        """
+        Verify that requesting page_size 20 and 50 maintains the same primary ordering
+        and that the first 20 records of page_size 50 match those of page_size 20.
+        """
+        # Create 100 records to ensure we have enough for both 20 and 50
+        # (We already have 30 from setUpTestData, let's add 70 more)
+        extra_products = [make_product(i) for i in range(31, 101)]
+        [make_inventory(p, i) for i, p in enumerate(extra_products, 31)]
+        total_count = 100
+
+        # 1. Test page_size=20
+        res_20 = self.client.get("/api/v1/inventory/?page_size=20")
+        self.assertEqual(res_20.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res_20.data["results"]), 20)
+        self.assertEqual(res_20.data["count"], total_count)
+        ids_20 = [r["id"] for r in res_20.data["results"]]
+
+        # 2. Test page_size=50
+        res_50 = self.client.get("/api/v1/inventory/?page_size=50")
+        self.assertEqual(res_50.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res_50.data["results"]), 50)
+        self.assertEqual(res_50.data["count"], total_count)
+        ids_50 = [r["id"] for r in res_50.data["results"]]
+
+        # 3. First 20 of 50 should match the 20 from page_size=20
+        self.assertEqual(ids_20, ids_50[:20], "The first 20 items should be consistent regardless of page size.")
+
+        # 4. Check ordering - by default it should be newest first (highest ID if sequential)
+        self.assertEqual(ids_50, sorted(ids_50, reverse=True), "Results should be ordered by ID descending (newest first).")
+
+    def test_sorting_by_other_fields(self):
+        """
+        Check if we can sort by other fields like quantity_on_hand.
+        If not yet implemented, this test will fail.
+        """
+        # Update records to have unique quantities for sorting
+        # We have 30 records from setup, plus 70 from previous test if they persist
+        # (but they don't, as tests are isolated). 
+        # Wait, setUpTestData runs once for the class. 
+        # My previous test added records but they were deleted after the test? 
+        # No, class-level data persists.
+        
+        all_records = list(Inventory.objects.all())
+        for i, record in enumerate(all_records):
+            record.quantity_on_hand = i * 10
+            record.save()
+
+        # Try to sort by quantity_on_hand (ascending)
+        res = self.client.get("/api/v1/inventory/?page_size=50&ordering=quantity_on_hand")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        
+        quantities = [r["quantity_on_hand"] for r in res.data["results"]]
+        self.assertEqual(quantities, sorted(quantities), f"Expected sorted quantities, got {quantities}")
+
+        # Try to sort by quantity_on_hand (descending)
+        res_desc = self.client.get("/api/v1/inventory/?page_size=50&ordering=-quantity_on_hand")
+        self.assertEqual(res_desc.status_code, status.HTTP_200_OK)
+        quantities_desc = [r["quantity_on_hand"] for r in res_desc.data["results"]]
+        self.assertEqual(quantities_desc, sorted(quantities, reverse=True), "Should be descending.")
 
     # --- auth ---
 

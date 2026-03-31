@@ -13,6 +13,18 @@ from products.models import Product
 DEFAULT_PAGE_SIZE = 20
 ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
 
+ALLOWED_ORDERINGS = {
+    'id', '-id',
+    'site', '-site',
+    'location', '-location',
+    'quantity_on_hand', '-quantity_on_hand',
+    'stock_value', '-stock_value',
+    'updated_at', '-updated_at',
+    'product__product_name', '-product__product_name',
+    'product_name', '-product_name',      # Alias for convenience
+    'reorder_status', '-reorder_status',
+}
+
 
 class InventoryViewSet(viewsets.ModelViewSet):
     """
@@ -22,6 +34,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
       ?product_id=<id>              - filter by product
       ?site=<name>                  - filter by site (case-insensitive)
       ?search=<term>                - search by product name (for transaction page dropdown)
+      ?ordering=<field>             - sort results (e.g., quantity_on_hand, -updated_at)
       ?page_size=<n>                - limit results (20, 50, 100, 200, 500, 1000 or 'all')
                                       defaults to 20
 
@@ -50,6 +63,16 @@ class InventoryViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(site__icontains=site_name)
         if search:
             queryset = queryset.filter(product__product_name__icontains=search)
+
+        ordering = params.get('ordering')
+        if ordering in ALLOWED_ORDERINGS:
+            # Map aliases to model fields
+            if ordering == 'product_name':
+                ordering = 'product__product_name'
+            elif ordering == '-product_name':
+                ordering = '-product__product_name'
+            
+            queryset = queryset.order_by(ordering)
 
         return queryset
 

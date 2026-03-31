@@ -429,16 +429,16 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 | Param | Options | Default | Description |
 |-------|---------|---------|-------------|
 | `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | `20` | Max records to return |
+| `ordering=<field>`| `product_name`, `site`, `location`, `quantity_on_hand`, `stock_value`, `updated_at`, `reorder_status` | `-updated_at` | Sort results. Use `-` prefix for descending. |
 | `product_id=<id>` | — | — | Filter by product ID |
 | `site=<name>` | — | — | Filter by site name (case-insensitive partial match) |
 | `search=<term>` | — | — | Search by product name — used by the **transaction page** dropdown |
 
 **Examples**
 ```
-GET /api/v1/inventory/
-GET /api/v1/inventory/?page_size=50
-GET /api/v1/inventory/?page_size=all
-GET /api/v1/inventory/?site=Warehouse+A
+GET /api/v1/inventory/?ordering=product_name
+GET /api/v1/inventory/?page_size=50&ordering=-quantity_on_hand
+GET /api/v1/inventory/?site=Warehouse+A&ordering=location
 GET /api/v1/inventory/?search=bolt&page_size=100
 ```
 
