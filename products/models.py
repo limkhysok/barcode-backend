@@ -31,7 +31,7 @@ class Product(models.Model):
     )
 
     class Meta:
-        ordering = ['id']
+        ordering = ['-id']
 
     def __str__(self):
         # Fixed self.productid -> self.id

@@ -14,6 +14,7 @@ from .serializers import ProductSerializer
 ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
 
 ALLOWED_ORDERINGS = {
+    'id', '-id',
     'product_name', '-product_name',
     'supplier', '-supplier',
     'cost_per_unit', '-cost_per_unit',
