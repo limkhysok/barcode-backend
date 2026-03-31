@@ -328,11 +328,33 @@ Category choices: `Fasteners`, `Accessories`
 Track stock levels across sites and locations. **All endpoints require authentication with a JWT access token.**
 
 - **Base Endpoint:** `/api/v1/inventory/`
-- **Methods:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE`
-- **Extra:** `GET /api/v1/inventory/stats` — Overview stats (not paginated) → `200 OK`
+- **Methods:**
+  - `GET /api/v1/inventory/` — List all inventory records (paginated) → `200 OK`
+  - `GET /api/v1/inventory/stats/` — Overview stats (not paginated) → `200 OK`
+  - `GET /api/v1/inventory/{id}/` — Retrieve a single record → `200 OK`
+  - `POST /api/v1/inventory/` — Create a new inventory record → `201 Created`
+  - `PUT /api/v1/inventory/{id}/` — Full replace of a record → `200 OK`
+  - `PATCH /api/v1/inventory/{id}/` — Partial update of a record → `200 OK`
+  - `DELETE /api/v1/inventory/{id}/` — Delete a record → `204 No Content`
+
+> **Note:** `stock_value` and `reorder_status` are **read-only** — they are auto-calculated whenever `quantity_on_hand` changes via a transaction. Do not send them in POST/PUT/PATCH requests.
+
+> **Uniqueness:** Each combination of `product` + `site` + `location` must be unique. Attempting to create a duplicate returns `400 Bad Request`.
+
+### Authentication Required
+```
+Authorization: Bearer <access_token>
+```
+
+#### Example using curl:
+```
+curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inventory/
+```
+
+---
 
 ### Inventory Stats (GET)
-`GET /api/v1/inventory/stats` — returns aggregate overview for the dashboard. Not paginated.
+`GET /api/v1/inventory/stats/` — returns aggregate overview for the dashboard. Not paginated.
 
 #### Response (200 OK)
 ```json
@@ -369,14 +391,30 @@ Track stock levels across sites and locations. **All endpoints require authentic
 ---
 
 ### List Inventory (GET)
-`GET /api/v1/inventory/` — returns page 1 by default (20 items). Use `?page=2` for the next page.
+`GET /api/v1/inventory/` — returns the most recently updated records first, limited to `page_size` (default 20). No page navigation — increase `page_size` to fetch more.
+
+#### Query Parameters
+| Param | Options | Default | Description |
+|-------|---------|---------|-------------|
+| `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | `20` | Max records to return |
+| `product_id=<id>` | — | — | Filter by product ID |
+| `site=<name>` | — | — | Filter by site name (case-insensitive partial match) |
+| `search=<term>` | — | — | Search by product name — used by the **transaction page** dropdown |
+
+**Examples**
+```
+GET /api/v1/inventory/
+GET /api/v1/inventory/?page_size=50
+GET /api/v1/inventory/?page_size=all
+GET /api/v1/inventory/?site=Warehouse+A
+GET /api/v1/inventory/?search=bolt&page_size=100
+```
 
 #### Response (200 OK)
 ```json
 {
   "count": 42,
-  "next": "http://localhost:8000/api/v1/inventory?page=2",
-  "previous": null,
+  "page_size": 20,
   "results": [
     {
       "id": 1,
@@ -402,27 +440,20 @@ Track stock levels across sites and locations. **All endpoints require authentic
 }
 ```
 
-> **Note:** All inventory endpoints require the following header:
->
-> ```
-> Authorization: Bearer <access_token>
-> ```
->
-> You must first obtain an access token via the login endpoint (`POST /api/users/login`).
-
-#### Example using curl:
-```
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inventory/
-```
-
-### Query Parameters (GET list)
-| Param | Description |
+| Field | Description |
 |-------|-------------|
-| `product_id=<id>` | Filter by product ID |
-| `site=<name>` | Filter by site name (case-insensitive) |
-| `search=<term>` | Search by product name — used by the **transaction page** dropdown |
+| `count` | Total matching records in the database (before the limit) |
+| `page_size` | Number of records actually returned |
+| `results` | Array of inventory records |
+
+---
 
 ### Create Inventory Record (POST)
+`POST /api/v1/inventory/`
+
+Only send the writable fields — `stock_value` and `reorder_status` are calculated automatically.
+
+#### Payload
 ```json
 {
   "product": 1,
@@ -432,7 +463,14 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 }
 ```
 
-### Response Example
+| Field | Required | Description |
+|-------|----------|-------------|
+| `product` | Yes | Product ID (foreign key) |
+| `site` | Yes | Site name (e.g. "Warehouse A") |
+| `location` | Yes | Location within the site (e.g. "A1-Shelf-5") |
+| `quantity_on_hand` | No | Starting quantity — defaults to `0`, must be ≥ 0 |
+
+#### Success (201 Created)
 ```json
 {
   "id": 1,
@@ -455,6 +493,56 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
   "updated_at": "2026-03-25T08:00:00Z"
 }
 ```
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | `product`, `site`, or `location` missing | `{ "field": ["This field is required."] }` |
+| `400 Bad Request` | `quantity_on_hand` is negative | `{ "quantity_on_hand": ["Ensure this value is greater than or equal to 0."] }` |
+| `400 Bad Request` | Duplicate `product` + `site` + `location` | `{ "non_field_errors": ["The fields product, site, location must make a unique set."] }` |
+
+---
+
+### Retrieve Inventory Record (GET)
+`GET /api/v1/inventory/{id}/`
+
+#### Errors
+| Status | Response |
+|--------|----------|
+| `404 Not Found` | `{ "detail": "No Inventory matches the given query." }` |
+
+---
+
+### Update Inventory Record (PUT / PATCH)
+`PUT /api/v1/inventory/{id}/` — full replace (all writable fields required)
+`PATCH /api/v1/inventory/{id}/` — partial update (only send fields to change)
+
+> `stock_value` and `reorder_status` are ignored if included — they are always recalculated from transactions.
+
+#### PATCH Payload Example
+```json
+{
+  "location": "B2-Shelf-3"
+}
+```
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | Duplicate `product` + `site` + `location` | `{ "non_field_errors": ["The fields product, site, location must make a unique set."] }` |
+| `404 Not Found` | Record not found | `{ "detail": "No Inventory matches the given query." }` |
+
+---
+
+### Delete Inventory Record (DELETE)
+`DELETE /api/v1/inventory/{id}/`
+
+#### Success (204 No Content) — empty body
+
+#### Errors
+| Status | Response |
+|--------|----------|
+| `404 Not Found` | `{ "detail": "No Inventory matches the given query." }` |
 
 ---
 

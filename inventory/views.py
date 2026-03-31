@@ -1,4 +1,7 @@
+from datetime import timedelta
 from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncDate, TruncWeek
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,30 +9,40 @@ from .models import Inventory
 from .serializers import InventorySerializer
 from products.models import Product
 
+
+DEFAULT_PAGE_SIZE = 20
+ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
+
+
 class InventoryViewSet(viewsets.ModelViewSet):
     """
     Explore and manage inventory (site tracking, stock counts, and locations).
 
     Query params for list:
-      ?product_id=<id>   - filter by product
-      ?site=<name>       - filter by site (case-insensitive)
-      ?search=<term>     - search by product name (for transaction page dropdown)
+      ?product_id=<id>              - filter by product
+      ?site=<name>                  - filter by site (case-insensitive)
+      ?search=<term>                - search by product name (for transaction page dropdown)
+      ?page_size=<n>                - limit results (20, 50, 100, 200, 500, 1000 or 'all')
+                                      defaults to 20
 
     Extra actions:
-      GET /api/inventory/scan/?barcode=<barcode>
+      GET /api/v1/inventory/scan/?barcode=<barcode>
         - Look up inventory records by product barcode (for scan page).
         - Returns { found, product, inventory } regardless of whether the
           product exists in inventory, so the frontend can show the right UI.
     """
-    queryset = Inventory.objects.all().order_by('-updated_at')
+    queryset = Inventory.objects.select_related('product').order_by('-updated_at')
     serializer_class = InventorySerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # Disable global page-number pagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        product_id = self.request.query_params.get('product_id')
-        site_name = self.request.query_params.get('site')
-        search = self.request.query_params.get('search')
+        params = self.request.query_params
+
+        product_id = params.get('product_id')
+        site_name = params.get('site')
+        search = params.get('search')
 
         if product_id:
             queryset = queryset.filter(product_id=product_id)
@@ -40,11 +53,69 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def list(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        raw = request.query_params.get('page_size', '').strip().lower()
+        if raw == 'all':
+            limit = None
+        else:
+            try:
+                size = int(raw)
+                limit = size if size in ALLOWED_PAGE_SIZES else DEFAULT_PAGE_SIZE
+            except (ValueError, TypeError):
+                limit = DEFAULT_PAGE_SIZE
+
+        total = queryset.count()
+        if limit is not None:
+            queryset = queryset[:limit]
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'count': total,
+            'page_size': limit if limit is not None else total,
+            'results': serializer.data,
+        })
+
+    def _activity_data(self, qs, days, group_by='day'):
+        """
+        Return new inventory records created within the last `days` days,
+        grouped by day (for 7/14/30-day windows) or by week (for 3-month window).
+        Missing dates/weeks are not included — frontend fills zeros.
+        """
+        cutoff = timezone.now() - timedelta(days=days)
+        filtered = qs.filter(created_at__gte=cutoff)
+
+        if group_by == 'week':
+            rows = (
+                filtered
+                .annotate(period=TruncWeek('created_at'))
+                .values('period')
+                .annotate(new_records=Count('id'))
+                .order_by('period')
+            )
+            return [
+                {'week_start': row['period'].date().isoformat(), 'new_records': row['new_records']}
+                for row in rows
+            ]
+
+        rows = (
+            filtered
+            .annotate(period=TruncDate('created_at'))
+            .values('period')
+            .annotate(new_records=Count('id'))
+            .order_by('period')
+        )
+        return [
+            {'date': row['period'].isoformat(), 'new_records': row['new_records']}
+            for row in rows
+        ]
+
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """
-        GET /api/v1/inventory/stats
-        Returns aggregate overview — not paginated.
+        GET /api/v1/inventory/stats/
+        Returns aggregate overview + time-based activity — not paginated.
         """
         qs = Inventory.objects.all()
 
@@ -78,12 +149,18 @@ class InventoryViewSet(viewsets.ModelViewSet):
                 }
                 for row in by_site
             },
+            "activity": {
+                "last_7_days":    {"data": self._activity_data(qs, 7,   'day')},
+                "last_14_days":   {"data": self._activity_data(qs, 14,  'day')},
+                "last_30_days":   {"data": self._activity_data(qs, 30,  'day')},
+                "last_3_months":  {"data": self._activity_data(qs, 90,  'week')},
+            },
         })
 
     @action(detail=False, methods=['get'], url_path='scan')
     def scan(self, request):
         """
-        GET /api/inventory/scan/?barcode=SN-XXXXXX
+        GET /api/v1/inventory/scan/?barcode=SN-XXXXXX
 
         Used by the scan page. Returns:
           {

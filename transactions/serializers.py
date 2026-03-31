@@ -1,6 +1,8 @@
 from decimal import Decimal
+from django.db import transaction as db_transaction
 from rest_framework import serializers
 from .models import Transaction, TransactionItem
+from inventory.models import Inventory
 
 
 class TransactionItemSerializer(serializers.ModelSerializer):
@@ -77,51 +79,22 @@ class TransactionSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             validated_data['performed_by'] = request.user
 
-        transaction = Transaction.objects.create(**validated_data)
+        with db_transaction.atomic():
+            transaction = Transaction.objects.create(**validated_data)
 
-        for item_data in items_data:
-            inventory = item_data['inventory']
-            quantity = item_data['quantity']
-            cost_per_unit = inventory.product.cost_per_unit or Decimal('0.00')
+            inventory_ids = [item['inventory'].id for item in items_data]
+            locked_inventory = {
+                inv.id: inv
+                for inv in Inventory.objects.select_for_update().filter(id__in=inventory_ids)
+            }
 
-            TransactionItem.objects.create(
-                transaction=transaction,
-                inventory=inventory,
-                quantity=quantity,
-                cost_per_unit=cost_per_unit,
-            )
-
-            # Update inventory stock and recalculate stats
-            inventory.quantity_on_hand += quantity
-            inventory.refresh_stats()
-
-        return transaction
-
-    def update(self, instance, validated_data):
-        items_data = validated_data.pop('items', None)
-
-        # Update top-level fields
-        instance.transaction_type = validated_data.get('transaction_type', instance.transaction_type)
-        instance.save()
-
-        if items_data is not None:
-            # Reverse inventory effects of all existing items
-            for existing_item in instance.items.all():
-                inventory = existing_item.inventory
-                inventory.quantity_on_hand -= existing_item.quantity
-                inventory.refresh_stats()
-
-            # Delete all existing items
-            instance.items.all().delete()
-
-            # Recreate items and apply new inventory effects
             for item_data in items_data:
-                inventory = item_data['inventory']
+                inventory = locked_inventory[item_data['inventory'].id]
                 quantity = item_data['quantity']
                 cost_per_unit = inventory.product.cost_per_unit or Decimal('0.00')
 
                 TransactionItem.objects.create(
-                    transaction=instance,
+                    transaction=transaction,
                     inventory=inventory,
                     quantity=quantity,
                     cost_per_unit=cost_per_unit,
@@ -129,5 +102,49 @@ class TransactionSerializer(serializers.ModelSerializer):
 
                 inventory.quantity_on_hand += quantity
                 inventory.refresh_stats()
+
+        return transaction
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+
+        with db_transaction.atomic():
+            instance.transaction_type = validated_data.get('transaction_type', instance.transaction_type)
+            instance.save()
+
+            if items_data is not None:
+                # Lock all inventory records involved (existing + new) before modifying
+                existing_inventory_ids = list(instance.items.values_list('inventory_id', flat=True))
+                new_inventory_ids = [item['inventory'].id for item in items_data]
+                all_ids = list(set(existing_inventory_ids + new_inventory_ids))
+                locked_inventory = {
+                    inv.id: inv
+                    for inv in Inventory.objects.select_for_update().filter(id__in=all_ids)
+                }
+
+                # Reverse inventory effects of all existing items
+                for existing_item in instance.items.all():
+                    inventory = locked_inventory[existing_item.inventory_id]
+                    inventory.quantity_on_hand -= existing_item.quantity
+                    inventory.refresh_stats()
+
+                # Delete all existing items
+                instance.items.all().delete()
+
+                # Recreate items and apply new inventory effects
+                for item_data in items_data:
+                    inventory = locked_inventory[item_data['inventory'].id]
+                    quantity = item_data['quantity']
+                    cost_per_unit = inventory.product.cost_per_unit or Decimal('0.00')
+
+                    TransactionItem.objects.create(
+                        transaction=instance,
+                        inventory=inventory,
+                        quantity=quantity,
+                        cost_per_unit=cost_per_unit,
+                    )
+
+                    inventory.quantity_on_hand += quantity
+                    inventory.refresh_stats()
 
         return instance
