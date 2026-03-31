@@ -207,3 +207,30 @@ class InventoryListPageSizeTest(APITestCase):
         self.client.credentials()
         res = self.client.get("/api/v1/inventory/")
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class InventoryIntegrityTest(APITestCase):
+    """
+    Verifies data integrity rules:
+    1. Cannot delete product if it has inventory records (PROTECT).
+    2. Cannot have negative quantity_on_hand (CheckConstraint).
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user("integrator", None, "t3st-u$er!")
+        self.product = make_product(1)
+        self.inventory = make_inventory(self.product, 1)
+
+    def test_product_deletion_is_protected(self):
+        """Deleting a product should raise ProtectedError if inventory exists."""
+        from django.db.models.deletion import ProtectedError
+        with self.assertRaises(ProtectedError):
+            self.product.delete()
+
+    def test_negative_quantity_is_blocked_by_db(self):
+        """Database should block saving an inventory record with negative quantity."""
+        from django.db import IntegrityError
+        self.inventory.quantity_on_hand = -10
+        # save() triggers the DB constraint
+        with self.assertRaises(IntegrityError):
+            self.inventory.save()

@@ -8,7 +8,7 @@ REORDER_CHOICES = [("Yes", "Yes"), ("No", "No")]
 
 class Inventory(models.Model):
     product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name="inventory_records"
+        Product, on_delete=models.PROTECT, related_name="inventory_records"
     )
     site = models.CharField(max_length=255)  # Store A, B, C
     location = models.CharField(max_length=255)
@@ -26,6 +26,12 @@ class Inventory(models.Model):
     class Meta:
         verbose_name_plural = "Inventory"
         unique_together = [["product", "site", "location"]]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity_on_hand__gte=0),
+                name='quantity_on_hand_non_negative',
+            )
+        ]
 
     def __str__(self):
         return f"{self.product.product_name} at {self.site} ({self.location})"

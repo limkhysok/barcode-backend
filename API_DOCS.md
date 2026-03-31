@@ -318,7 +318,7 @@ Category choices: `Fasteners`, `Accessories`
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `409 Conflict` | Has linked transactions | `{ "detail": "Cannot delete product with existing transactions." }` |
+| `409 Conflict` | Has linked inventory/transactions | `{ "detail": "Cannot delete product with existing inventory records or transactions." }` |
 | `404 Not Found` | Product not found | `{ "detail": "No Product matches the given query." }` |
 
 ---
@@ -530,7 +530,8 @@ Only send the writable fields — `stock_value` and `reorder_status` are calcula
 | Status | Scenario | Response |
 |--------|----------|----------|
 | `400 Bad Request` | `product`, `site`, or `location` missing | `{ "field": ["This field is required."] }` |
-| `400 Bad Request` | `quantity_on_hand` is negative | `{ "quantity_on_hand": ["Ensure this value is greater than or equal to 0."] }` |
+| `400 Bad Request` | `quantity_on_hand` is negative (API level) | `{ "quantity_on_hand": ["Ensure this value is greater than or equal to 0."] }` |
+| `500 Server Error` | `quantity_on_hand` is negative (DB level) | `{ "detail": "Database integrity error: quantity cannot be negative." }` |
 | `400 Bad Request` | Duplicate `product` + `site` + `location` | `{ "non_field_errors": ["The fields product, site, location must make a unique set."] }` |
 
 ---

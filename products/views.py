@@ -133,6 +133,6 @@ class ProductViewSet(viewsets.ModelViewSet):
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:
             return Response(
-                {"detail": "Cannot delete product with existing transactions."},
+                {"detail": "Cannot delete product with existing inventory records or transactions."},
                 status=status.HTTP_409_CONFLICT,
             )
