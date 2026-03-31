@@ -426,20 +426,21 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 `GET /api/v1/inventory/` — returns the most recently updated records first, limited to `page_size` (default 20). No page navigation — increase `page_size` to fetch more.
 
 #### Query Parameters
-| Param | Options | Default | Description |
-|-------|---------|---------|-------------|
-| `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | `20` | Max records to return |
-| `ordering=<field>`| `product_name`, `site`, `location`, `quantity_on_hand`, `stock_value`, `updated_at`, `reorder_status` | `-updated_at` | Sort results. Use `-` prefix for descending. |
-| `product_id=<id>` | — | — | Filter by product ID |
-| `site=<name>` | — | — | Filter by site name (case-insensitive partial match) |
-| `search=<term>` | — | — | Search by product name — used by the **transaction page** dropdown |
+| Param | Options | Description |
+|-------|---------|-------------|
+| `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | Max records to return |
+| `ordering=<field>`| `product_name`, `site`, `location`, `reorder_status`, `updated_at`, `quantity_on_hand` | Sort results. Use `-` prefix for Z-A or oldest first. |
+| `product_id=<id>` | — | Filter by product ID |
+| `site=<name>` | `SITE A`, `SITE B`, `SITE C`, `SITE D` | Filter by exact site |
+| `reorder_status=<val>`| `Yes`, `No` | Filter by reorder status |
+| `search=<term>` | — | Search logic: partial product name |
 
 **Examples**
 ```
 GET /api/v1/inventory/?ordering=product_name
+GET /api/v1/inventory/?ordering=-updated_at&site=SITE+A
+GET /api/v1/inventory/?reorder_status=Yes&ordering=location
 GET /api/v1/inventory/?page_size=50&ordering=-quantity_on_hand
-GET /api/v1/inventory/?site=Warehouse+A&ordering=location
-GET /api/v1/inventory/?search=bolt&page_size=100
 ```
 
 #### Response (200 OK)

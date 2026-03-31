@@ -14,15 +14,12 @@ DEFAULT_PAGE_SIZE = 20
 ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
 
 ALLOWED_ORDERINGS = {
-    'id', '-id',
+    'product_name', '-product_name',
     'site', '-site',
     'location', '-location',
-    'quantity_on_hand', '-quantity_on_hand',
-    'stock_value', '-stock_value',
-    'updated_at', '-updated_at',
-    'product__product_name', '-product__product_name',
-    'product_name', '-product_name',      # Alias for convenience
     'reorder_status', '-reorder_status',
+    'updated_at', '-updated_at',
+    'quantity_on_hand', '-quantity_on_hand',
 }
 
 
@@ -56,11 +53,16 @@ class InventoryViewSet(viewsets.ModelViewSet):
         product_id = params.get('product_id')
         site_name = params.get('site')
         search = params.get('search')
+        reorder_status = params.get('reorder_status')
 
         if product_id:
             queryset = queryset.filter(product_id=product_id)
         if site_name:
+            # Matches SITE A, SITE B, SITE C, SITE D etc. (inclusive icontains)
             queryset = queryset.filter(site__icontains=site_name)
+        if reorder_status:
+            # Handles 'Yes' or 'No' (standardized case-insensitive)
+            queryset = queryset.filter(reorder_status__iexact=reorder_status)
         if search:
             queryset = queryset.filter(product__product_name__icontains=search)
 
