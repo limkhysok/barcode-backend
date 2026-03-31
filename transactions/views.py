@@ -1,4 +1,5 @@
 from django.db.models import Count, Sum, F, ExpressionWrapper, DecimalField
+from django.db.models.functions import Abs
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -52,7 +53,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
         item_by_type = (
             TransactionItem.objects
             .values('transaction__transaction_type')
-            .annotate(total_value=Sum(line_total_expr))
+            .annotate(total_value=Abs(Sum(line_total_expr)))
         )
         # Build a lookup: { 'Receive': total_value, 'Sale': total_value }
         value_by_type = {

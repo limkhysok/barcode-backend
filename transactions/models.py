@@ -11,6 +11,7 @@ class Transaction(models.Model):
     performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
     class Meta:
+        ordering = ['-transaction_date', '-id']
         constraints = [
             models.CheckConstraint(
                 condition=Q(transaction_type__in=['Receive', 'Sale']),

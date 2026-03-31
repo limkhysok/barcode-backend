@@ -131,12 +131,12 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/prod
 
 #### Query Parameters
 
-**Pagination**
+**List Limit**
 | Param | Options | Default |
 |-------|---------|---------|
-| `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | `20` |
+| `page_size` | `20`, `40`, `100`, `200` | `20` (Max 200) |
 
-> Navigate pages via the `next` / `previous` URLs in the response — no need to manually pass `page`.
+> Control the number of results returned in a single list using the `page_size` parameter.
 
 **Search**
 | Param | Searches across |
@@ -639,11 +639,11 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 ```
 
 ### Frontend flow (scan page)
-1. Scan barcode → `GET /api/inventory/scan/?barcode=<scanned_value>`
+1. Scan barcode → `GET /api/v1/inventory/scan/?barcode=<scanned_value>`
 2. If `found: true` → show inventory list, user picks a site/location
 3. If `found: false` with product → show "item not in inventory"
 4. If 404 → show "unknown barcode"
-5. User confirms quantity + type → `POST /api/transactions/`
+5. User confirms quantity + type → `POST /api/v1/transactions/scan/` (for single item) or `POST /api/v1/transactions/` (for bulk)
 
 ---
 
@@ -653,15 +653,16 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 - **Base Endpoint:** `/api/v1/transactions/`
 - **Methods:**
   - `GET /api/v1/transactions/` — List all transactions (paginated)
-  - `GET /api/v1/transactions/stats` — Overview stats (not paginated) → `200 OK`
+  - `GET /api/v1/transactions/stats/` — Overview stats (not paginated) → `200 OK`
   - `POST /api/v1/transactions/` — Create a new transaction with items
+  - `POST /api/v1/transactions/scan/` — Quick create single-item transaction by barcode scan
   - `GET /api/v1/transactions/<id>/` — Retrieve a transaction by id
   - `PUT /api/v1/transactions/<id>/` — Replace a transaction by id
   - `PATCH /api/v1/transactions/<id>/` — Update part of a transaction by id
   - `DELETE /api/v1/transactions/<id>/` — Delete a transaction by id
 
 ### Transaction Stats (GET)
-`GET /api/v1/transactions/stats` — returns aggregate overview for the dashboard. Not paginated.
+`GET /api/v1/transactions/stats/` — returns aggregate overview for the dashboard. Not paginated.
 
 #### Response (200 OK)
 ```json
@@ -684,19 +685,26 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 |-------|-------------|
 | `total_transactions` | Total number of transactions |
 | `by_type.*.count` | Number of transactions of that type |
-| `by_type.*.total_value` | Sum of `quantity × cost_per_unit` across all items of that type |
+| `by_type.*.total_value` | Sum of `quantity × cost_per_unit` across all items of that type (Returned as absolute positive value) |
 
 ---
 
 ### List Transactions (GET)
-`GET /api/v1/transactions/` — returns page 1 by default (20 items). Use `?page=2` for the next page.
+`GET /api/v1/transactions/` — returns page 1 by default (20 items).
+
+#### Query Parameters
+| Param | Options | Default |
+|-------|---------|---------|
+| `page_size` | `20`, `40`, `100`, `200` | `20` (Max 200) |
+| `type` | `Receive`, `Sale` | — |
+| `barcode` | string | Filter by product barcode |
+| `search` | string | Search by product name |
 
 #### Response (200 OK)
 ```json
 {
   "count": 200,
-  "next": "http://localhost:8000/api/v1/transactions?page=2",
-  "previous": null,
+  "page_size": 20,
   "results": [
     {
       "id": 1,
