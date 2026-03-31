@@ -33,7 +33,7 @@ DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 
 ALLOWED_HOSTS = []
 
-APPEND_SLASH = False
+APPEND_SLASH = True
 
 
 # Application definition
@@ -45,7 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'django_extensions',
+    "django_extensions",
     # Third party
     "rest_framework",
     "rest_framework_simplejwt",
