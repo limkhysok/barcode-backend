@@ -354,7 +354,7 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 ---
 
 ### Inventory Stats (GET)
-`GET /api/v1/inventory/stats/` — returns aggregate overview for the dashboard. Not paginated.
+`GET /api/v1/inventory/stats/` — returns aggregate overview + time-based activity for charts. Not paginated.
 
 #### Response (200 OK)
 ```json
@@ -374,6 +374,32 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
       "total_quantity_on_hand": 4500,
       "total_stock_value": "4750.00"
     }
+  },
+  "activity": {
+    "last_7_days": {
+      "data": [
+        { "date": "2026-03-25", "new_records": 3 },
+        { "date": "2026-03-27", "new_records": 1 }
+      ]
+    },
+    "last_14_days": {
+      "data": [
+        { "date": "2026-03-18", "new_records": 5 },
+        { "date": "2026-03-25", "new_records": 3 }
+      ]
+    },
+    "last_30_days": {
+      "data": [
+        { "date": "2026-03-01", "new_records": 8 },
+        { "date": "2026-03-15", "new_records": 4 }
+      ]
+    },
+    "last_3_months": {
+      "data": [
+        { "week_start": "2026-01-05", "new_records": 12 },
+        { "week_start": "2026-01-12", "new_records": 7 }
+      ]
+    }
   }
 }
 ```
@@ -387,6 +413,12 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 | `by_site.*.records` | Number of inventory records at that site |
 | `by_site.*.total_quantity_on_hand` | Total stock quantity at that site |
 | `by_site.*.total_stock_value` | Total stock value at that site |
+| `activity.last_7_days.data` | Daily new inventory records — last 7 days |
+| `activity.last_14_days.data` | Daily new inventory records — last 14 days |
+| `activity.last_30_days.data` | Daily new inventory records — last 30 days |
+| `activity.last_3_months.data` | Weekly new inventory records — last 90 days (`week_start` = Monday) |
+
+> **Chart note:** Only dates/weeks with activity are included — days with zero new records are omitted. Fill missing dates with `0` on the frontend before rendering.
 
 ---
 
