@@ -38,6 +38,7 @@ DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
+
 APPEND_SLASH = True
 
 
