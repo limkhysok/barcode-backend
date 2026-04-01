@@ -1,0 +1,22 @@
+# Ignore virtual environment
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Ignore local database if using sqlite (MySQL is safe)
+*.sqlite3
+
+# Ignore git and docker files
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Ignore environment variables (keep them in .env, handled separately)
+.env
+
+# Ignore node_modules if any
+node_modules/
