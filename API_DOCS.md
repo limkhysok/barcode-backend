@@ -133,7 +133,7 @@ CRUD operations on products. **All endpoints require authentication with a JWT a
 
 - **Base Endpoint:** `/api/v1/products/`
 - **Methods:**
-  - `GET /api/v1/products/` — List all products (paginated) → `200 OK`
+  - `GET /api/v1/products/` — List all products (unpaginated) → `200 OK`
   - `GET /api/v1/products/stats/` — Overview stats (not paginated) → `200 OK`
   - `GET /api/v1/products/{id}/` — Retrieve a product → `200 OK`
   - `POST /api/v1/products/` — Create a new product → `201 Created`
@@ -160,16 +160,9 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/prod
 ---
 
 ### List Products (GET)
-`GET /api/v1/products/` — returns page 1 by default (20 rows per page).
+`GET /api/v1/products/` — returns all products.
 
 #### Query Parameters
-
-**List Limit**
-| Param | Options | Default |
-|-------|---------|---------|
-| `page_size` | `20`, `40`, `100`, `200` | `20` (Max 200) |
-
-> Control the number of results returned in a single list using the `page_size` parameter.
 
 **Search**
 | Param | Searches across |
@@ -197,19 +190,17 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/prod
 
 **Examples**
 ```
-GET /api/v1/products/?page_size=50
+GET /api/v1/products/
 GET /api/v1/products/?search=bolt
 GET /api/v1/products/?search=CTK&category=Fasteners
 GET /api/v1/products/?category=Fasteners&ordering=cost_per_unit
-GET /api/v1/products/?category=Accessories&ordering=-reorder_level&page_size=all
+GET /api/v1/products/?category=Accessories&ordering=-reorder_level
 ```
 
 #### Response (200 OK)
 ```json
 {
   "count": 85,
-  "next": "http://localhost:8000/api/v1/products/?page=2",
-  "previous": null,
   "results": [
     {
       "id": 1,
