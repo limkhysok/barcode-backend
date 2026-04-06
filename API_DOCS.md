@@ -654,6 +654,7 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 - **Methods:**
   - `GET /api/v1/transactions/` — List all transactions (no pagination)
   - `GET /api/v1/transactions/stats/` — Overview stats (not paginated) → `200 OK`
+  - `GET /api/v1/transactions/export/` — Export transactions for a day as CSV → `200 OK`
   - `POST /api/v1/transactions/` — Create a new transaction with items
   - `POST /api/v1/transactions/scan/` — Quick create single-item transaction by barcode scan
   - `GET /api/v1/transactions/<id>/` — Retrieve a transaction by id
@@ -688,6 +689,57 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 | `today_transactions` | Number of transactions created today |
 | `by_type.*.total_count` | Total number of transactions of that type (all time) |
 | `by_type.*.today_count` | Number of transactions of that type created today |
+
+---
+
+### Export Transactions (GET)
+`GET /api/v1/transactions/export/` — downloads a `.csv` file of all transactions (one row per item) for a given day.
+
+#### Query Parameters
+| Param | Format | Default | Description |
+|-------|--------|---------|-------------|
+| `date` | `YYYY-MM-DD` | today | The day to export |
+| `type` | `Receive` \| `Sale` | — (both) | Filter by transaction type |
+
+**Examples**
+```
+GET /api/v1/transactions/export/
+GET /api/v1/transactions/export/?date=2026-04-06
+GET /api/v1/transactions/export/?date=2026-04-06&type=Sale
+GET /api/v1/transactions/export/?type=Receive
+```
+
+#### Response (200 OK)
+Returns a CSV file download with `Content-Disposition: attachment; filename="transactions_YYYY-MM-DD.csv"` (or `transactions_YYYY-MM-DD_receive.csv` / `transactions_YYYY-MM-DD_sale.csv` when filtered by type).
+
+**CSV columns:**
+| Column | Description |
+|--------|-------------|
+| `transaction_id` | Transaction ID |
+| `transaction_type` | `Receive` or `Sale` |
+| `transaction_date` | Date and time (`YYYY-MM-DD HH:MM:SS`) |
+| `performed_by` | Username of the user who created the transaction |
+| `product_name` | Product name |
+| `barcode` | Product barcode |
+| `site` | Inventory site |
+| `location` | Inventory location within the site |
+| `quantity` | Quantity moved (positive = Receive, negative = Sale) |
+| `cost_per_unit` | Cost per unit at the time of the transaction |
+| `line_total` | `quantity × cost_per_unit` |
+
+**Example PDF output:**
+```
+transaction_id,transaction_type,transaction_date,performed_by,product_name,barcode,site,location,quantity,cost_per_unit,line_total
+1,Receive,2026-04-06 09:00:00,staff_user,Zinc Bolt M8,4006381333931,SITE A,A1-Shelf-5,10,0.50,5.00
+1,Receive,2026-04-06 09:00:00,staff_user,Hex Nut M8,SN-A1B2C3,SITE A,B2-Shelf-1,5,8.50,42.50
+2,Sale,2026-04-06 11:30:00,staff_user,Zinc Bolt M8,4006381333931,SITE A,A1-Shelf-5,-3,0.50,-1.50
+```
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | Invalid `date` format | `{ "detail": "Invalid date format. Use YYYY-MM-DD." }` |
+| `400 Bad Request` | Invalid `type` value | `{ "detail": "Invalid type. Use Receive or Sale." }` |
 
 ---
 

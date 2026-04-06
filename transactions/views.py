@@ -1,5 +1,6 @@
-from django.db.models import Count, Sum, F, ExpressionWrapper, DecimalField, Q
-from django.db.models.functions import Abs
+import csv
+from django.db.models import Count, Q
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -66,6 +67,95 @@ class TransactionViewSet(viewsets.ModelViewSet):
             "today_transactions": Transaction.objects.filter(transaction_date__date=today).count(),
             "by_type": by_type_result,
         })
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        """
+        GET /api/v1/transactions/export/
+        Export transactions for a given day as CSV.
+        Query params:
+          - date: YYYY-MM-DD (defaults to today)
+          - type: Receive | Sale (optional, omit for both)
+        """
+        # Resolve date
+        date_param = request.query_params.get('date')
+        if date_param:
+            try:
+                from datetime import date as date_cls
+                export_date = date_cls.fromisoformat(date_param)
+            except ValueError:
+                return Response(
+                    {'detail': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            export_date = timezone.now().date()
+
+        # Resolve optional type filter
+        transaction_type = request.query_params.get('type')
+        if transaction_type and transaction_type not in ('Receive', 'Sale'):
+            return Response(
+                {'detail': 'Invalid type. Use Receive or Sale.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        qs = (
+            TransactionItem.objects
+            .select_related(
+                'transaction',
+                'transaction__performed_by',
+                'inventory__product',
+                'inventory',
+            )
+            .filter(transaction__transaction_date__date=export_date)
+        )
+        if transaction_type:
+            qs = qs.filter(transaction__transaction_type=transaction_type)
+
+        qs = qs.order_by('transaction__transaction_date', 'transaction__id', 'id')
+
+        filename = f"transactions_{export_date}"
+        if transaction_type:
+            filename += f"_{transaction_type.lower()}"
+        filename += ".csv"
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'transaction_id',
+            'transaction_type',
+            'transaction_date',
+            'performed_by',
+            'product_name',
+            'barcode',
+            'site',
+            'location',
+            'quantity',
+            'cost_per_unit',
+            'line_total',
+        ])
+
+        for item in qs:
+            txn = item.transaction
+            inv = item.inventory
+            product = inv.product
+            writer.writerow([
+                txn.id,
+                txn.transaction_type,
+                txn.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+                txn.performed_by.username if txn.performed_by else '',
+                product.product_name,
+                product.barcode,
+                inv.site,
+                inv.location,
+                item.quantity,
+                item.cost_per_unit,
+                item.line_total,
+            ])
+
+        return response
 
     @action(detail=False, methods=['post'], url_path='scan')
     def scan(self, request):
