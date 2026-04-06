@@ -1,5 +1,5 @@
 import csv
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -51,6 +51,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             .annotate(
                 total_count=Count('id'),
                 today_count=Count('id', filter=Q(transaction_date__date=today)),
+                today_total_quantity=Sum('items__quantity', filter=Q(transaction_date__date=today)),
             )
             .order_by('transaction_type')
         )
@@ -59,6 +60,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             row['transaction_type']: {
                 "total_count": row['total_count'],
                 "today_count": row['today_count'],
+                "today_total_quantity": row['today_total_quantity'] or 0,
             }
             for row in by_type
         }

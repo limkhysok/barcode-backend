@@ -706,22 +706,31 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
   "by_type": {
     "Receive": {
       "total_count": 120,
-      "today_count": 10
+      "today_count": 10,
+      "today_total_quantity": 85
     },
     "Sale": {
       "total_count": 80,
-      "today_count": 5
+      "today_count": 5,
+      "today_total_quantity": 22
     }
   }
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `total_transactions` | Total number of transactions (all time) |
-| `today_transactions` | Number of transactions created today |
-| `by_type.*.total_count` | Total number of transactions of that type (all time) |
-| `by_type.*.today_count` | Number of transactions of that type created today |
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_transactions` | `number` | Total number of transactions (all time) |
+| `today_transactions` | `number` | Number of transactions created today |
+| `by_type.*.total_count` | `number` | Total number of transactions of that type (all time) |
+| `by_type.*.today_count` | `number` | Number of transactions of that type created today |
+| `by_type.*.today_total_quantity` | `number` | Sum of all item quantities across today's transactions of that type. Always `0` if no transactions today. |
+
+#### Frontend Integration Notes
+- `by_type` keys are always `"Receive"` and `"Sale"` (exact casing — match it in your type definitions).
+- `today_total_quantity` is the **sum of `quantity` across all `TransactionItem` rows** linked to today's transactions of that type. Use this to display how many units were received or sold today.
+- If no transactions of a type occurred today, `today_count` will be `0` and `today_total_quantity` will be `0`.
+- This endpoint has no query parameters — it always reflects the current calendar day (server timezone).
 
 ---
 
