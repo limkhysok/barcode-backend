@@ -447,12 +447,11 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 ---
 
 ### List Inventory (GET)
-`GET /api/v1/inventory/` — returns the most recently updated records first, limited to `page_size` (default 20). No page navigation — increase `page_size` to fetch more.
+`GET /api/v1/inventory/` — returns all inventory records, most recently updated first.
 
 #### Query Parameters
 | Param | Options | Description |
 |-------|---------|-------------|
-| `page_size=<n>` | `20`, `50`, `100`, `200`, `500`, `1000`, `all` | Max records to return |
 | `ordering=<field>`| `product_name`, `site`, `location`, `reorder_status`, `updated_at`, `quantity_on_hand` | Sort results. Use `-` prefix for Z-A or oldest first. |
 | `product_id=<id>` | — | Filter by product ID |
 | `site=<name>` | `SITE A`, `SITE B`, `SITE C`, `SITE D` | Filter by exact site |
@@ -464,14 +463,13 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 GET /api/v1/inventory/?ordering=product_name
 GET /api/v1/inventory/?ordering=-updated_at&site=SITE+A
 GET /api/v1/inventory/?reorder_status=Yes&ordering=location
-GET /api/v1/inventory/?page_size=50&ordering=-quantity_on_hand
+GET /api/v1/inventory/?ordering=-quantity_on_hand
 ```
 
 #### Response (200 OK)
 ```json
 {
   "count": 42,
-  "page_size": 20,
   "results": [
     {
       "id": 1,
@@ -499,8 +497,7 @@ GET /api/v1/inventory/?page_size=50&ordering=-quantity_on_hand
 
 | Field | Description |
 |-------|-------------|
-| `count` | Total matching records in the database (before the limit) |
-| `page_size` | Number of records actually returned |
+| `count` | Total number of records returned |
 | `results` | Array of inventory records |
 
 ---

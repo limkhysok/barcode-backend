@@ -11,9 +11,6 @@ from products.models import Product
 from users.permissions import RBACPermission
 
 
-DEFAULT_PAGE_SIZE = 20
-ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
-
 ALLOWED_ORDERINGS = {
     'product_name', '-product_name',
     'site', '-site',
@@ -33,8 +30,6 @@ class InventoryViewSet(viewsets.ModelViewSet):
       ?site=<name>                  - filter by site (case-insensitive)
       ?search=<term>                - search by product name (for transaction page dropdown)
       ?ordering=<field>             - sort results (e.g., quantity_on_hand, -updated_at)
-      ?page_size=<n>                - limit results (20, 50, 100, 200, 500, 1000 or 'all')
-                                      defaults to 20
 
     Extra actions:
       GET /api/v1/inventory/scan/?barcode=<barcode>
@@ -80,26 +75,14 @@ class InventoryViewSet(viewsets.ModelViewSet):
         return queryset
 
     def list(self, request):
+        """
+        GET /api/v1/inventory/
+        Returns all inventory records (unpaginated).
+        """
         queryset = self.filter_queryset(self.get_queryset())
-
-        raw = request.query_params.get('page_size', '').strip().lower()
-        if raw == 'all':
-            limit = None
-        else:
-            try:
-                size = int(raw)
-                limit = size if size in ALLOWED_PAGE_SIZES else DEFAULT_PAGE_SIZE
-            except (ValueError, TypeError):
-                limit = DEFAULT_PAGE_SIZE
-
-        total = queryset.count()
-        if limit is not None:
-            queryset = queryset[:limit]
-
         serializer = self.get_serializer(queryset, many=True)
         return Response({
-            'count': total,
-            'page_size': limit if limit is not None else total,
+            'count': len(serializer.data),
             'results': serializer.data,
         })
 
