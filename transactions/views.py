@@ -1,5 +1,6 @@
-from django.db.models import Count, Sum, F, ExpressionWrapper, DecimalField
+from django.db.models import Count, Sum, F, ExpressionWrapper, DecimalField, Q
 from django.db.models.functions import Abs
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,6 +19,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.prefetch_related('items__inventory__product').all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -40,37 +42,28 @@ class TransactionViewSet(viewsets.ModelViewSet):
         GET /api/v1/transactions/stats
         Returns aggregate overview — not paginated.
         """
+        today = timezone.now().date()
+
         by_type = (
             Transaction.objects.values('transaction_type')
-            .annotate(count=Count('id'))
+            .annotate(
+                total_count=Count('id'),
+                today_count=Count('id', filter=Q(transaction_date__date=today)),
+            )
             .order_by('transaction_type')
         )
 
-        line_total_expr = ExpressionWrapper(
-            F('quantity') * F('cost_per_unit'),
-            output_field=DecimalField(max_digits=10, decimal_places=2),
-        )
-        item_by_type = (
-            TransactionItem.objects
-            .values('transaction__transaction_type')
-            .annotate(total_value=Abs(Sum(line_total_expr)))
-        )
-        # Build a lookup: { 'Receive': total_value, 'Sale': total_value }
-        value_by_type = {
-            row['transaction__transaction_type']: row['total_value'] or 0
-            for row in item_by_type
-        }
-
-        by_type_result = {}
-        for row in by_type:
-            t = row['transaction_type']
-            by_type_result[t] = {
-                "count": row['count'],
-                "total_value": value_by_type.get(t, 0),
+        by_type_result = {
+            row['transaction_type']: {
+                "total_count": row['total_count'],
+                "today_count": row['today_count'],
             }
+            for row in by_type
+        }
 
         return Response({
             "total_transactions": Transaction.objects.count(),
+            "today_transactions": Transaction.objects.filter(transaction_date__date=today).count(),
             "by_type": by_type_result,
         })
 

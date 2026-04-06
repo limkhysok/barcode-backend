@@ -652,7 +652,7 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 
 - **Base Endpoint:** `/api/v1/transactions/`
 - **Methods:**
-  - `GET /api/v1/transactions/` — List all transactions (paginated)
+  - `GET /api/v1/transactions/` — List all transactions (no pagination)
   - `GET /api/v1/transactions/stats/` — Overview stats (not paginated) → `200 OK`
   - `POST /api/v1/transactions/` — Create a new transaction with items
   - `POST /api/v1/transactions/scan/` — Quick create single-item transaction by barcode scan
@@ -668,14 +668,15 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 ```json
 {
   "total_transactions": 200,
+  "today_transactions": 15,
   "by_type": {
     "Receive": {
-      "count": 120,
-      "total_value": "48500.00"
+      "total_count": 120,
+      "today_count": 10
     },
     "Sale": {
-      "count": 80,
-      "total_value": "32000.00"
+      "total_count": 80,
+      "today_count": 5
     }
   }
 }
@@ -683,40 +684,36 @@ Log stock movements. A single transaction has **one type** (`Receive` or `Sale`)
 
 | Field | Description |
 |-------|-------------|
-| `total_transactions` | Total number of transactions |
-| `by_type.*.count` | Number of transactions of that type |
-| `by_type.*.total_value` | Sum of `quantity × cost_per_unit` across all items of that type (Returned as absolute positive value) |
+| `total_transactions` | Total number of transactions (all time) |
+| `today_transactions` | Number of transactions created today |
+| `by_type.*.total_count` | Total number of transactions of that type (all time) |
+| `by_type.*.today_count` | Number of transactions of that type created today |
 
 ---
 
 ### List Transactions (GET)
-`GET /api/v1/transactions/` — returns page 1 by default (20 items).
+`GET /api/v1/transactions/` — returns all transactions with no limit.
 
 #### Query Parameters
 | Param | Options | Default |
 |-------|---------|---------|
-| `page_size` | `20`, `40`, `100`, `200` | `20` (Max 200) |
 | `type` | `Receive`, `Sale` | — |
 | `barcode` | string | Filter by product barcode |
 | `search` | string | Search by product name |
 
 #### Response (200 OK)
 ```json
-{
-  "count": 200,
-  "page_size": 20,
-  "results": [
-    {
-      "id": 1,
-      "transaction_type": "Receive",
-      "performed_by": 2,
-      "performed_by_username": "staff_user",
-      "total_transaction_value": "262.50",
-      "items": [ { "..." } ],
-      "transaction_date": "2026-03-26T10:00:00Z"
-    }
-  ]
-}
+[
+  {
+    "id": 1,
+    "transaction_type": "Receive",
+    "performed_by": 2,
+    "performed_by_username": "staff_user",
+    "total_transaction_value": "262.50",
+    "items": [ { "..." } ],
+    "transaction_date": "2026-03-26T10:00:00Z"
+  }
+]
 ```
 
 ### Query Parameters (GET list)
