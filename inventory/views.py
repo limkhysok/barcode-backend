@@ -2,12 +2,13 @@ from datetime import timedelta
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate, TruncWeek
 from django.utils import timezone
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Inventory
 from .serializers import InventorySerializer
 from products.models import Product
+from users.permissions import RBACPermission
 
 
 DEFAULT_PAGE_SIZE = 20
@@ -43,7 +44,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
     """
     queryset = Inventory.objects.select_related('product').order_by('-updated_at')
     serializer_class = InventorySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RBACPermission]
     pagination_class = None  # Disable global page-number pagination
 
     def get_queryset(self):

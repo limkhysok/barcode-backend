@@ -2,13 +2,14 @@ from django.db import IntegrityError
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Sum
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Product
 from .serializers import ProductSerializer
+from users.permissions import RBACPermission
 
 
 ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
@@ -43,7 +44,7 @@ class ProductPagination(PageNumberPagination):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('created_by')
     serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RBACPermission]
     pagination_class = ProductPagination
 
     def get_queryset(self):

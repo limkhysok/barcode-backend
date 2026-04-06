@@ -2,7 +2,7 @@ import csv
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Transaction, TransactionItem
@@ -10,6 +10,7 @@ from .serializers import TransactionSerializer
 from products.models import Product
 from inventory.models import Inventory
 from inventory.serializers import InventorySerializer
+from users.permissions import RBACPermission
 
 
 class TransactionViewSet(viewsets.ModelViewSet):
@@ -19,7 +20,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     """
     queryset = Transaction.objects.prefetch_related('items__inventory__product').all()
     serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [RBACPermission]
     pagination_class = None
 
     def get_queryset(self):

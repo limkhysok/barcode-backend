@@ -6,6 +6,39 @@ This backend uses **Django Rest Framework** and **SimpleJWT** for secure authent
 
 ---
 
+## Role-Based Access Control (RBAC)
+
+All protected endpoints enforce the following permission rules based on the user's role:
+
+| Method | Staff | Boss | Superadmin |
+|--------|-------|------|------------|
+| `GET` — view/list | ✅ | ✅ | ✅ |
+| `POST` — create | ✅ | ✅ | ✅ |
+| `PUT` / `PATCH` — edit | ❌ 403 | ✅ | ✅ |
+| `DELETE` | ❌ 403 | ❌ 403 | ✅ |
+
+> **Role mapping:**
+> - **Staff** — any authenticated user (`is_boss: false`, `is_superuser: false`)
+> - **Boss** — user with `is_boss: true`
+> - **Superadmin** — user with `is_superuser: true`
+
+> **Exception:** `PATCH /api/v1/users/me` is available to all authenticated users regardless of role (users can always update their own profile).
+
+### JWT Claims
+The login response token now includes role fields. Decode the `access` token to read:
+```json
+{
+  "user_id": 2,
+  "username": "staff_user",
+  "is_boss": false,
+  "is_staff": false,
+  "is_superuser": false
+}
+```
+Use these claims on the frontend to show/hide UI elements (edit buttons, delete buttons) without an extra API call.
+
+---
+
 ## 1. User Registration
 Create a new user account.
 

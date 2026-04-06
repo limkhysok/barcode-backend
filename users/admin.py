@@ -7,28 +7,29 @@ class UserAdmin(BaseUserAdmin):
     # Add custom fields to detailed view
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Personal Info', {'fields': ('name',)}),
+        ('Role', {'fields': ('is_boss',)}),
     )
-    # Add additional customization to form
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        (None, {'fields': ('name',)}),
+        (None, {'fields': ('name', 'is_boss')}),
     )
 
-    # Show more fields in the user list view
     list_display = (
-        'username', 
-        'email', 
+        'username',
+        'email',
         'name',
-        'is_staff', 
+        'is_boss',
+        'is_staff',
+        'is_superuser',
         'is_active',
         'date_joined',
         'last_login',
     )
-    
-    # Search functions
+
     search_fields = ('username', 'email', 'name', 'first_name', 'last_name')
-    
-    # Filter functions
-    list_filter = ('is_staff', 'is_superuser', 'is_active', 'groups')
+
+    list_filter = ('is_boss', 'is_staff', 'is_superuser', 'is_active')
+
+    list_editable = ('is_boss',)
     
     # Default ordering
     ordering = ('-date_joined',)
