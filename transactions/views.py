@@ -1,4 +1,5 @@
 import csv
+from datetime import timedelta
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
@@ -18,7 +19,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     Log and manage stock transactions (Receive / Sale).
     Each transaction has a single type and can contain multiple items.
     """
-    queryset = Transaction.objects.prefetch_related('items__inventory__product').all()
+    queryset = Transaction.objects.select_related('performed_by').prefetch_related('items__inventory__product').all()
     serializer_class = TransactionSerializer
     permission_classes = [RBACPermission]
     pagination_class = None
@@ -44,14 +45,19 @@ class TransactionViewSet(viewsets.ModelViewSet):
         GET /api/v1/transactions/stats
         Returns aggregate overview — not paginated.
         """
-        today = timezone.now().date()
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
 
-        by_type = (
+        by_type = list(
             Transaction.objects.values('transaction_type')
             .annotate(
                 total_count=Count('id'),
-                today_count=Count('id', filter=Q(transaction_date__date=today)),
-                today_total_quantity=Sum('items__quantity', filter=Q(transaction_date__date=today)),
+                today_count=Count('id', filter=Q(
+                    transaction_date__gte=today_start, transaction_date__lt=today_end
+                )),
+                today_total_quantity=Sum('items__quantity', filter=Q(
+                    transaction_date__gte=today_start, transaction_date__lt=today_end
+                )),
             )
             .order_by('transaction_type')
         )
@@ -66,8 +72,8 @@ class TransactionViewSet(viewsets.ModelViewSet):
         }
 
         return Response({
-            "total_transactions": Transaction.objects.count(),
-            "today_transactions": Transaction.objects.filter(transaction_date__date=today).count(),
+            "total_transactions": sum(row['total_count'] for row in by_type),
+            "today_transactions": sum(row['today_count'] for row in by_type),
             "by_type": by_type_result,
         })
 

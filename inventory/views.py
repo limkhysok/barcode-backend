@@ -1,6 +1,6 @@
 from datetime import timedelta
 from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncDate, TruncWeek
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -86,39 +86,47 @@ class InventoryViewSet(viewsets.ModelViewSet):
             'results': serializer.data,
         })
 
-    def _activity_data(self, qs, days, group_by='day'):
+    def _build_activity(self, qs):
         """
-        Return new inventory records created within the last `days` days,
-        grouped by day (for 7/14/30-day windows) or by week (for 3-month window).
-        Missing dates/weeks are not included — frontend fills zeros.
+        Single DB query for 90 days of daily data, then slice in Python
+        for each window (7/14/30 days daily, 90 days weekly).
         """
-        cutoff = timezone.now() - timedelta(days=days)
-        filtered = qs.filter(created_at__gte=cutoff)
-
-        if group_by == 'week':
-            rows = (
-                filtered
-                .annotate(period=TruncWeek('created_at'))
-                .values('period')
-                .annotate(new_records=Count('id'))
-                .order_by('period')
-            )
-            return [
-                {'week_start': row['period'].date().isoformat(), 'new_records': row['new_records']}
-                for row in rows
-            ]
-
+        cutoff = timezone.now() - timedelta(days=90)
         rows = (
-            filtered
+            qs.filter(created_at__gte=cutoff)
             .annotate(period=TruncDate('created_at'))
             .values('period')
             .annotate(new_records=Count('id'))
             .order_by('period')
         )
-        return [
-            {'date': row['period'].isoformat(), 'new_records': row['new_records']}
-            for row in rows
-        ]
+        daily = [(row['period'], row['new_records']) for row in rows]
+
+        today = timezone.now().date()
+
+        def slice_days(days):
+            cutoff_date = today - timedelta(days=days)
+            return [
+                {'date': d.isoformat(), 'new_records': n}
+                for d, n in daily if d >= cutoff_date
+            ]
+
+        def to_weeks():
+            from collections import defaultdict
+            week_totals = defaultdict(int)
+            for d, n in daily:
+                week_start = d - timedelta(days=d.weekday())
+                week_totals[week_start] += n
+            return [
+                {'week_start': w.isoformat(), 'new_records': n}
+                for w, n in sorted(week_totals.items())
+            ]
+
+        return {
+            "last_7_days":   {"data": slice_days(7)},
+            "last_14_days":  {"data": slice_days(14)},
+            "last_30_days":  {"data": slice_days(30)},
+            "last_3_months": {"data": to_weeks()},
+        }
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
@@ -158,12 +166,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
                 }
                 for row in by_site
             },
-            "activity": {
-                "last_7_days":    {"data": self._activity_data(qs, 7,   'day')},
-                "last_14_days":   {"data": self._activity_data(qs, 14,  'day')},
-                "last_30_days":   {"data": self._activity_data(qs, 30,  'day')},
-                "last_3_months":  {"data": self._activity_data(qs, 90,  'week')},
-            },
+            "activity": self._build_activity(qs),
         })
 
     @action(detail=False, methods=['get'], url_path='scan')
