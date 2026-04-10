@@ -11,14 +11,7 @@ from products.models import Product
 from users.permissions import RBACPermission
 
 
-ALLOWED_ORDERINGS = {
-    'product_name', '-product_name',
-    'site', '-site',
-    'location', '-location',
-    'reorder_status', '-reorder_status',
-    'updated_at', '-updated_at',
-    'quantity_on_hand', '-quantity_on_hand',
-}
+
 
 
 class InventoryViewSet(viewsets.ModelViewSet):
@@ -47,30 +40,9 @@ class InventoryViewSet(viewsets.ModelViewSet):
         params = self.request.query_params
 
         product_id = params.get('product_id')
-        site_name = params.get('site')
-        search = params.get('search')
-        reorder_status = params.get('reorder_status')
 
         if product_id:
             queryset = queryset.filter(product_id=product_id)
-        if site_name:
-            # Matches SITE A, SITE B, SITE C, SITE D etc. (inclusive icontains)
-            queryset = queryset.filter(site__icontains=site_name)
-        if reorder_status:
-            # Handles 'Yes' or 'No' (standardized case-insensitive)
-            queryset = queryset.filter(reorder_status__iexact=reorder_status)
-        if search:
-            queryset = queryset.filter(product__product_name__icontains=search)
-
-        ordering = params.get('ordering')
-        if ordering in ALLOWED_ORDERINGS:
-            # Map aliases to model fields
-            if ordering == 'product_name':
-                ordering = 'product__product_name'
-            elif ordering == '-product_name':
-                ordering = '-product__product_name'
-            
-            queryset = queryset.order_by(ordering)
 
         return queryset
 

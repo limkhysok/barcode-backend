@@ -450,20 +450,15 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 `GET /api/v1/inventory/` — returns all inventory records, most recently updated first.
 
 #### Query Parameters
-| Param | Options | Description |
-|-------|---------|-------------|
-| `ordering=<field>`| `product_name`, `site`, `location`, `reorder_status`, `updated_at`, `quantity_on_hand` | Sort results. Use `-` prefix for Z-A or oldest first. |
-| `product_id=<id>` | — | Filter by product ID |
-| `site=<name>` | `SITE A`, `SITE B`, `SITE C`, `SITE D` | Filter by exact site |
-| `reorder_status=<val>`| `Yes`, `No` | Filter by reorder status |
-| `search=<term>` | — | Search logic: partial product name |
+| Param | Description |
+|-------|-------------|
+| `product_id=<id>` | Filter by product ID |
 
-**Examples**
+> **Client-Side Management:** This endpoint returns all records (`count` and `results`). All searching, filtering (by site/reorder status), and sorting should now be handled directly on the frontend/client-side for optimal performance.
+
+**Example**
 ```
-GET /api/v1/inventory/?ordering=product_name
-GET /api/v1/inventory/?ordering=-updated_at&site=SITE+A
-GET /api/v1/inventory/?reorder_status=Yes&ordering=location
-GET /api/v1/inventory/?ordering=-quantity_on_hand
+GET /api/v1/inventory/
 ```
 
 #### Response (200 OK)

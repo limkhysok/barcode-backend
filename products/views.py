@@ -13,7 +13,9 @@ from users.permissions import RBACPermission
 
 ALLOWED_ORDERINGS = {
     'id', '-id',
+    'barcode', '-barcode',
     'product_name', '-product_name',
+    'category', '-category',
     'supplier', '-supplier',
     'cost_per_unit', '-cost_per_unit',
     'reorder_level', '-reorder_level',
@@ -42,6 +44,10 @@ class ProductViewSet(viewsets.ModelViewSet):
         category = params.get('category')
         if category:
             queryset = queryset.filter(category__iexact=category)
+
+        supplier = params.get('supplier')
+        if supplier:
+            queryset = queryset.filter(supplier__iexact=supplier)
 
         ordering = params.get('ordering')
         if ordering in ALLOWED_ORDERINGS:
