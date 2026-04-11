@@ -23,6 +23,11 @@ class Product(models.Model):
     )
     reorder_level = models.PositiveIntegerField(default=5) # Added PositiveIntegerField
     supplier = models.CharField(max_length=255, db_index=True)
+    product_picture = models.ImageField(
+        upload_to='products/images/',
+        null=True,
+        blank=True
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

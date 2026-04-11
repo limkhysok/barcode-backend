@@ -12,7 +12,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'barcode', 'product_name', 'category',
             'cost_per_unit', 'reorder_level', 'supplier',
-            'created_at', 'updated_at', 'created_by',
+            'product_picture', 'created_at', 'updated_at', 'created_by',
         ]
         read_only_fields = ('created_at', 'updated_at', 'created_by')
 

@@ -210,6 +210,7 @@ GET /api/v1/products/?category=Accessories&ordering=-reorder_level
       "cost_per_unit": "0.50",
       "reorder_level": 100,
       "supplier": "CTK Industrial",
+      "product_picture": "/media/products/images/zinc_bolt_m8.jpg",
       "created_at": "2026-03-25T08:00:00Z",
       "updated_at": "2026-03-25T08:00:00Z",
       "created_by": 2
@@ -255,15 +256,19 @@ GET /api/v1/products/?category=Accessories&ordering=-reorder_level
 
 `barcode` is the **physical barcode scanned from the product** — it is required and must be unique. It cannot be changed after creation.
 
-```json
-{
-  "barcode": "4006381333931",
-  "product_name": "Zinc Bolt M8",
-  "category": "Fasteners",
-  "cost_per_unit": 0.50,
-  "reorder_level": 100,
-  "supplier": "CTK Industrial"
-}
+> **`product_picture` is optional.** Use `multipart/form-data` when uploading an image. Use `application/json` when no image is included.
+
+```
+POST /api/v1/products/
+Content-Type: multipart/form-data
+
+barcode=4006381333931
+product_name=Zinc Bolt M8
+category=Fasteners
+cost_per_unit=0.50
+reorder_level=100
+supplier=CTK Industrial
+product_picture=<file>        ← optional
 ```
 
 Category choices: `Fasteners`, `Accessories`
@@ -278,6 +283,7 @@ Category choices: `Fasteners`, `Accessories`
   "cost_per_unit": "0.50",
   "reorder_level": 100,
   "supplier": "CTK Industrial",
+  "product_picture": "/media/products/images/zinc_bolt_m8.jpg",
   "created_at": "2026-03-25T08:00:00Z",
   "updated_at": "2026-03-25T08:00:00Z",
   "created_by": 2
@@ -313,15 +319,24 @@ Category choices: `Fasteners`, `Accessories`
 
 > `barcode` is **read-only after creation** — it is silently ignored if included in the request body.
 
+> Use `multipart/form-data` when uploading or replacing `product_picture`. Use `application/json` for text-only updates.
+
 #### PUT Payload
+```
+PUT /api/v1/products/{id}/
+Content-Type: multipart/form-data
+
+product_name=Zinc Bolt M8 Updated
+category=Fasteners
+cost_per_unit=0.75
+reorder_level=150
+supplier=New Supplier Ltd
+product_picture=<file>        ← optional, replaces existing image
+```
+
+To **remove** the picture, send `product_picture` as an empty string:
 ```json
-{
-  "product_name": "Zinc Bolt M8 Updated",
-  "category": "Fasteners",
-  "cost_per_unit": 0.75,
-  "reorder_level": 150,
-  "supplier": "New Supplier Ltd"
-}
+{ "product_picture": "" }
 ```
 
 #### Success (200 OK) — returns the updated product object
