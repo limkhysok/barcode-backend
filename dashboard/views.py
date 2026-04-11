@@ -13,8 +13,9 @@ from transactions.models import Transaction
 
 def _resolve_date_range(range_label, start_param, end_param):
     """
-    Return (range_start, range_end, resolved_label) as timezone-aware datetimes.
-    Supported values: today, week, month, custom.
+    Return (range_start, range_end, resolved_label).
+    Supported values: today, week, month, all_time, custom.
+    Returns (None, None, 'all_time') when no date filtering should apply.
     """
     now = timezone.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -28,6 +29,9 @@ def _resolve_date_range(range_label, start_param, end_param):
 
     if range_label == "month":
         return today_start.replace(day=1), today_end, "month"
+
+    if range_label == "all_time":
+        return None, None, "all_time"
 
     if range_label == "custom":
         try:
@@ -71,13 +75,13 @@ class DashboardStatsView(APIView):
             range_label, start_param, end_param
         )
 
-        if range_start is None:
+        if range_start is None and resolved_label == "custom":
             return Response(
                 {"detail": "Invalid date format for custom range. Use YYYY-MM-DD for start and end."},
                 status=400,
             )
 
-        if range_label == "custom" and range_start > range_end:
+        if resolved_label == "custom" and range_start > range_end:
             return Response(
                 {"detail": "start must be before or equal to end."},
                 status=400,
@@ -86,8 +90,8 @@ class DashboardStatsView(APIView):
         return Response({
             "range": {
                 "label": resolved_label,
-                "start": range_start.isoformat(),
-                "end": range_end.isoformat(),
+                "start": range_start.isoformat() if range_start else None,
+                "end": range_end.isoformat() if range_end else None,
             },
             "products": self._product_stats(range_start, range_end),
             "inventory": self._inventory_stats(range_start, range_end),
@@ -97,10 +101,9 @@ class DashboardStatsView(APIView):
     # ── Products (scoped by created_at) ──────────────────────────────────────
 
     def _product_stats(self, range_start, range_end):
-        qs = Product.objects.filter(
-            created_at__gte=range_start,
-            created_at__lte=range_end,
-        )
+        qs = Product.objects.all()
+        if range_start is not None:
+            qs = qs.filter(created_at__gte=range_start, created_at__lte=range_end)
 
         total_in_range = qs.count()
 
@@ -110,8 +113,7 @@ class DashboardStatsView(APIView):
             .order_by("category")
         )
 
-        # Low-stock / out-of-stock: inventory records belonging to products
-        # that were created in the range
+        # Low-stock / out-of-stock: inventory records belonging to products in the range
         product_ids = qs.values_list("id", flat=True)
         low_stock = Inventory.objects.filter(
             product_id__in=product_ids,
@@ -132,10 +134,9 @@ class DashboardStatsView(APIView):
     # ── Inventory (scoped by updated_at) ─────────────────────────────────────
 
     def _inventory_stats(self, range_start, range_end):
-        qs = Inventory.objects.filter(
-            updated_at__gte=range_start,
-            updated_at__lte=range_end,
-        )
+        qs = Inventory.objects.all()
+        if range_start is not None:
+            qs = qs.filter(updated_at__gte=range_start, updated_at__lte=range_end)
 
         totals = qs.aggregate(
             total_records=Count("id"),
@@ -179,10 +180,12 @@ class DashboardStatsView(APIView):
     # ── Transactions (scoped by transaction_date) ─────────────────────────────
 
     def _transaction_stats(self, range_start, range_end):
-        range_qs = Transaction.objects.filter(
-            transaction_date__gte=range_start,
-            transaction_date__lte=range_end,
-        )
+        range_qs = Transaction.objects.all()
+        if range_start is not None:
+            range_qs = range_qs.filter(
+                transaction_date__gte=range_start,
+                transaction_date__lte=range_end,
+            )
 
         by_type_rows = list(
             range_qs.values("transaction_type")
