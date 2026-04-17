@@ -3,7 +3,11 @@ from django.db import models
 from products.models import Product
 
 
-REORDER_CHOICES = [("Yes", "Yes"), ("No", "No")]
+STATUS_LOW = "LOW"
+STATUS_NO = "No"
+STATUS_NO_STOCK = "NO STOCK"
+
+REORDER_CHOICES = [(STATUS_LOW, STATUS_LOW), (STATUS_NO, STATUS_NO), (STATUS_NO_STOCK, STATUS_NO_STOCK)]
 
 
 class Inventory(models.Model):
@@ -17,7 +21,7 @@ class Inventory(models.Model):
     )
     stock_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     reorder_status = models.CharField(
-        max_length=3, choices=REORDER_CHOICES, default="No", db_index=True
+        max_length=8, choices=REORDER_CHOICES, default=STATUS_NO, db_index=True
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -41,5 +45,10 @@ class Inventory(models.Model):
         from decimal import Decimal
         cost = self.product.cost_per_unit or Decimal('0.00')
         self.stock_value = self.quantity_on_hand * cost
-        self.reorder_status = "Yes" if self.quantity_on_hand <= self.product.reorder_level else "No"
+        if self.quantity_on_hand == 0:
+            self.reorder_status = STATUS_NO_STOCK
+        elif self.quantity_on_hand <= self.product.reorder_level:
+            self.reorder_status = STATUS_LOW
+        else:
+            self.reorder_status = STATUS_NO
         self.save(update_fields=['quantity_on_hand', 'stock_value', 'reorder_status'])
