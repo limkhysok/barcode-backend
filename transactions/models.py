@@ -47,4 +47,6 @@ class TransactionItem(models.Model):
 
     @property
     def line_total(self):
+        if self.quantity is None or self.cost_per_unit is None:
+            return 0
         return self.quantity * self.cost_per_unit
