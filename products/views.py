@@ -27,7 +27,6 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('created_by')
     serializer_class = ProductSerializer
     permission_classes = [RBACPermission]
-    pagination_class = None
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -56,16 +55,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         return queryset
 
     def list(self, request):
-        """
-        GET /api/v1/products/
-        Returns all products (unpaginated).
-        """
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'count': len(serializer.data),
-            'results': serializer.data,
-        })
+        return Response({'count': len(serializer.data), 'results': serializer.data})
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):

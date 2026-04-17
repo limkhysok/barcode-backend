@@ -173,8 +173,6 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
-    "DEFAULT_PAGINATION_CLASS": "core.pagination.LimitOnlyPagination",
-    "PAGE_SIZE": 20,
 }
 
 # Simple JWT settings

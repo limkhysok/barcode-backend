@@ -33,30 +33,29 @@ class InventoryViewSet(viewsets.ModelViewSet):
     queryset = Inventory.objects.select_related('product').order_by('-updated_at')
     serializer_class = InventorySerializer
     permission_classes = [RBACPermission]
-    pagination_class = None  # Disable global page-number pagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
         params = self.request.query_params
 
         product_id = params.get('product_id')
-
         if product_id:
             queryset = queryset.filter(product_id=product_id)
+
+        site = params.get('site')
+        if site:
+            queryset = queryset.filter(site__iexact=site)
+
+        search = params.get('search')
+        if search:
+            queryset = queryset.filter(product__product_name__icontains=search)
 
         return queryset
 
     def list(self, request):
-        """
-        GET /api/v1/inventory/
-        Returns all inventory records (unpaginated).
-        """
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'count': len(serializer.data),
-            'results': serializer.data,
-        })
+        return Response({'count': len(serializer.data), 'results': serializer.data})
 
     def _build_activity(self, qs):
         """
@@ -65,8 +64,8 @@ class InventoryViewSet(viewsets.ModelViewSet):
         """
         cutoff = timezone.now() - timedelta(days=90)
         rows = (
-            qs.filter(created_at__gte=cutoff)
-            .annotate(period=TruncDate('created_at'))
+            qs.filter(updated_at__gte=cutoff)
+            .annotate(period=TruncDate('updated_at'))
             .values('period')
             .annotate(new_records=Count('id'))
             .order_by('period')
@@ -178,7 +177,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
         from products.serializers import ProductSerializer
         return Response({
-            "found": inventory_qs.exists(),
+            "found": len(inventory_data) > 0,
             "product": ProductSerializer(product).data,
             "inventory": inventory_data,
         })

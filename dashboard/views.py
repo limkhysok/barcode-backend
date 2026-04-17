@@ -222,7 +222,8 @@ class DashboardStatsView(APIView):
                 "transaction_type": txn.transaction_type,
                 "transaction_date": txn.transaction_date.isoformat(),
                 "performed_by": txn.performed_by.username if txn.performed_by else None,
-                "item_count": txn.items.count(),
+                # Use list() to hit the prefetch cache instead of firing a COUNT query per row.
+                "item_count": len(txn.items.all()),
                 "total_quantity": abs(sum(item.quantity for item in txn.items.all())),
             }
             for txn in recent_qs
