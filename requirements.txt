@@ -11,3 +11,4 @@ sqlparse==0.5.5
 tzdata==2025.3
 PyMySQL==1.1.2
 gunicorn==23.0.0
+Pillow==11.2.1
