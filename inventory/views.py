@@ -1,13 +1,15 @@
 from datetime import timedelta
+from django.db import IntegrityError
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Inventory
+from .models import Inventory, STATUS_LOW, STATUS_NO_STOCK
 from .serializers import InventorySerializer
 from products.models import Product
+from products.serializers import ProductSerializer
 from users.permissions import RBACPermission
 
 
@@ -56,6 +58,30 @@ class InventoryViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         return Response({'count': len(serializer.data), 'results': serializer.data})
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            self.perform_create(serializer)
+        except IntegrityError:
+            return Response(
+                {"detail": "An inventory record for this product, site, and location already exists."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def _save_and_refresh(self, serializer):
+        instance = serializer.save()
+        instance.refresh_stats()
+
+    def perform_create(self, serializer):
+        self._save_and_refresh(serializer)
+
+    def perform_update(self, serializer):
+        self._save_and_refresh(serializer)
 
     def _build_activity(self, qs):
         """
@@ -111,7 +137,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
             total_records=Count('id'),
             total_quantity=Sum('quantity_on_hand'),
             total_stock_value=Sum('stock_value'),
-            needs_reorder=Count('id', filter=Q(reorder_status='Yes')),
+            needs_reorder=Count('id', filter=Q(reorder_status__in=[STATUS_LOW, STATUS_NO_STOCK])),
         )
 
         by_site = (
@@ -175,7 +201,6 @@ class InventoryViewSet(viewsets.ModelViewSet):
         inventory_qs = Inventory.objects.filter(product=product).order_by('site', 'location')
         inventory_data = InventorySerializer(inventory_qs, many=True).data
 
-        from products.serializers import ProductSerializer
         return Response({
             "found": len(inventory_data) > 0,
             "product": ProductSerializer(product).data,

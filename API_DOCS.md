@@ -368,7 +368,7 @@ Track stock levels across sites and locations. **All endpoints require authentic
 
 - **Base Endpoint:** `/api/v1/inventory/`
 - **Methods:**
-  - `GET /api/v1/inventory/` — List all inventory records (paginated) → `200 OK`
+  - `GET /api/v1/inventory/` — List all inventory records (unpaginated) → `200 OK`
   - `GET /api/v1/inventory/stats/` — Overview stats (not paginated) → `200 OK`
   - `GET /api/v1/inventory/{id}/` — Retrieve a single record → `200 OK`
   - `POST /api/v1/inventory/` — Create a new inventory record → `201 Created`
@@ -376,9 +376,16 @@ Track stock levels across sites and locations. **All endpoints require authentic
   - `PATCH /api/v1/inventory/{id}/` — Partial update of a record → `200 OK`
   - `DELETE /api/v1/inventory/{id}/` — Delete a record → `204 No Content`
 
-> **Note:** `stock_value` and `reorder_status` are **read-only** — they are auto-calculated whenever `quantity_on_hand` changes via a transaction. Do not send them in POST/PUT/PATCH requests.
+> **Note:** `stock_value` and `reorder_status` are **read-only** — they are auto-calculated whenever `quantity_on_hand` changes (via direct inventory write or a transaction). Do not send them in POST/PUT/PATCH requests.
 
-> **Uniqueness:** Each combination of `product` + `site` + `location` must be unique. Attempting to create a duplicate returns `400 Bad Request`.
+> **`reorder_status` values:**
+> | Value | Meaning |
+> |-------|---------|
+> | `"No"` | Stock is above reorder level — no action needed |
+> | `"LOW"` | Stock is at or below the product's `reorder_level` |
+> | `"NO STOCK"` | `quantity_on_hand` is 0 |
+
+> **Uniqueness:** Each combination of `product` + `site` + `location` must be unique. Attempting to create a duplicate returns `409 Conflict`.
 
 ### Authentication Required
 ```
@@ -448,7 +455,7 @@ curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inve
 | `total_records` | Total number of inventory records |
 | `total_quantity_on_hand` | Sum of all stock quantities across all sites |
 | `total_stock_value` | Sum of all `stock_value` across all records |
-| `needs_reorder` | Count of records where `reorder_status = "Yes"` |
+| `needs_reorder` | Count of records where `reorder_status` is `"LOW"` or `"NO STOCK"` |
 | `by_site.*.records` | Number of inventory records at that site |
 | `by_site.*.total_quantity_on_hand` | Total stock quantity at that site |
 | `by_site.*.total_stock_value` | Total stock value at that site |
@@ -564,7 +571,7 @@ Only send the writable fields — `stock_value` and `reorder_status` are calcula
 | `400 Bad Request` | `product`, `site`, or `location` missing | `{ "field": ["This field is required."] }` |
 | `400 Bad Request` | `quantity_on_hand` is negative (API level) | `{ "quantity_on_hand": ["Ensure this value is greater than or equal to 0."] }` |
 | `500 Server Error` | `quantity_on_hand` is negative (DB level) | `{ "detail": "Database integrity error: quantity cannot be negative." }` |
-| `400 Bad Request` | Duplicate `product` + `site` + `location` | `{ "non_field_errors": ["The fields product, site, location must make a unique set."] }` |
+| `409 Conflict` | Duplicate `product` + `site` + `location` | `{ "detail": "An inventory record for this product, site, and location already exists." }` |
 
 ---
 
@@ -594,7 +601,7 @@ Only send the writable fields — `stock_value` and `reorder_status` are calcula
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `400 Bad Request` | Duplicate `product` + `site` + `location` | `{ "non_field_errors": ["The fields product, site, location must make a unique set."] }` |
+| `409 Conflict` | Duplicate `product` + `site` + `location` | `{ "detail": "An inventory record for this product, site, and location already exists." }` |
 | `404 Not Found` | Record not found | `{ "detail": "No Inventory matches the given query." }` |
 
 ---
