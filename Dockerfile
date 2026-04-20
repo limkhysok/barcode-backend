@@ -21,7 +21,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the project code
 COPY . /app/
-RUN python manage.py collectstatic --noinput
+RUN SECRET_KEY=build_dummy DB_NAME=build DB_USER=build DB_PASSWORD=build DB_HOST=build DB_PORT=3306 \
+    python manage.py collectstatic --noinput
 
 # Expose the port the app runs on
 EXPOSE 8000

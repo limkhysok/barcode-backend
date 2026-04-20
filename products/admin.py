@@ -1,8 +1,9 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from core.admin_site import admin_site
 from .models import Product
 
-@admin.register(Product)
+@admin.register(Product, site=admin_site)
 class ProductAdmin(admin.ModelAdmin):
     list_display = (
         'row_number', 'product_thumbnail', 'barcode', 'product_name',

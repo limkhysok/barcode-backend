@@ -1,0 +1,381 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Dashboard | Barcode Admin{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  /* ---- Dashboard layout ---- */
+  .dash-wrap { padding: 24px; }
+
+  /* ---- Stat grid ---- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--border-color);
+    border: 1px solid var(--border-color);
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--module-bg);
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-decoration: none;
+    transition: background .12s;
+  }
+
+  .stat-card:hover { background: var(--selected-bg); text-decoration: none; }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--body-quiet-color);
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--body-fg);
+    line-height: 1;
+  }
+
+  .stat-sub {
+    font-size: 12px;
+    color: var(--body-quiet-color);
+    margin-top: 2px;
+  }
+
+  .stat-card.warn .stat-value { color: var(--delete-button-bg); }
+
+  /* ---- Section header ---- */
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--body-quiet-color);
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--border-color);
+    margin: 0 0 0;
+  }
+
+  /* ---- Two-col layout ---- */
+  .dash-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  @media (max-width: 900px) { .dash-cols { grid-template-columns: 1fr; } }
+
+  /* ---- Panel ---- */
+  .panel {
+    background: var(--module-bg);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+  }
+
+  .panel-head {
+    background: var(--darkened-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-head-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--body-quiet-color);
+  }
+
+  .panel-head a {
+    font-size: 11px;
+    color: var(--body-quiet-color);
+    text-decoration: none;
+    border: 1px solid var(--border-color);
+    padding: 2px 8px;
+  }
+
+  .panel-head a:hover { color: var(--body-fg); text-decoration: none; }
+
+  .panel-body { padding: 0; }
+
+  /* ---- Table inside panel ---- */
+  .dash-table { width: 100%; border-collapse: collapse; }
+
+  .dash-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--hairline-color);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+
+  .dash-table tr:last-child td { border-bottom: none; }
+  .dash-table tr:hover td { background: var(--selected-bg); }
+
+  .dash-table .td-muted { color: var(--body-quiet-color); font-size: 12px; }
+  .dash-table .td-mono  { font-family: monospace; font-size: 12px; }
+
+  /* ---- Badge ---- */
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border: 1px solid var(--border-color);
+    color: var(--body-quiet-color);
+  }
+
+  .badge-warn {
+    border-color: var(--delete-button-bg);
+    color: var(--delete-button-bg);
+    background: transparent;
+  }
+
+
+  .empty-panel {
+    padding: 24px 14px;
+    font-size: 13px;
+    color: var(--body-quiet-color);
+    text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dash-wrap">
+
+  {# ------------------------------------------------------------------ #}
+  {# Stats row                                                           #}
+  {# ------------------------------------------------------------------ #}
+  <div class="stat-grid">
+
+    <a class="stat-card" href="{% url 'admin:users_user_changelist' %}">
+      <span class="stat-label">Total Users</span>
+      <span class="stat-value">{{ stats.total_users }}</span>
+      <span class="stat-sub">{{ stats.active_users }} active · {{ stats.boss_users }} boss</span>
+    </a>
+
+    <a class="stat-card" href="{% url 'admin:products_product_changelist' %}">
+      <span class="stat-label">Products</span>
+      <span class="stat-value">{{ stats.total_products }}</span>
+      <span class="stat-sub">in catalogue</span>
+    </a>
+
+    <a class="stat-card" href="{% url 'admin:inventory_inventory_changelist' %}">
+      <span class="stat-label">Inventory</span>
+      <span class="stat-value">{{ stats.total_inventory }}</span>
+      <span class="stat-sub">${{ stats.total_stock_value|floatformat:0 }} stock value</span>
+    </a>
+
+    {% if stats.low_stock > 0 %}
+    <a class="stat-card warn" href="{% url 'admin:inventory_inventory_changelist' %}?reorder_status__in=LOW,NO+STOCK">
+      <span class="stat-label">Low / Out of Stock</span>
+      <span class="stat-value">{{ stats.low_stock }}</span>
+      <span class="stat-sub">needs attention</span>
+    </a>
+    {% else %}
+    <div class="stat-card">
+      <span class="stat-label">Low / Out of Stock</span>
+      <span class="stat-value">{{ stats.low_stock }}</span>
+      <span class="stat-sub">all good</span>
+    </div>
+    {% endif %}
+
+    <a class="stat-card" href="{% url 'admin:transactions_transaction_changelist' %}">
+      <span class="stat-label">Transactions</span>
+      <span class="stat-value">{{ stats.total_transactions }}</span>
+      <span class="stat-sub">{{ stats.sales_count }} sales · {{ stats.receive_count }} receives</span>
+    </a>
+
+    <a class="stat-card" href="{% url 'admin:transactions_transaction_changelist' %}">
+      <span class="stat-label">This Week</span>
+      <span class="stat-value">{{ stats.transactions_week }}</span>
+      <span class="stat-sub">{{ stats.transactions_today }} today</span>
+    </a>
+
+    <a class="stat-card" href="{% url 'admin:sessions_session_changelist' %}">
+      <span class="stat-label">Active Sessions</span>
+      <span class="stat-value">{{ stats.active_sessions }}</span>
+      <span class="stat-sub">live right now</span>
+    </a>
+
+    <a class="stat-card" href="{% url 'admin:admin_logentry_changelist' %}">
+      <span class="stat-label">Admin Actions</span>
+      <span class="stat-value">{{ stats.admin_actions_week }}</span>
+      <span class="stat-sub">last 7 days</span>
+    </a>
+
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Two-column panels                                                   #}
+  {# ------------------------------------------------------------------ #}
+  <div class="dash-cols">
+
+    {# Recent admin actions #}
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-head-title">Recent Admin Actions</span>
+        <a href="{% url 'admin:admin_logentry_changelist' %}">View all</a>
+      </div>
+      <div class="panel-body">
+        {% if recent_logs %}
+        <table class="dash-table">
+          <thead>
+            <tr>
+              <th>Object</th>
+              <th style="text-align:right;">User / Time</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for entry in recent_logs %}
+          <tr>
+            <td>
+              <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--body-quiet-color);">
+                {{ entry.content_type }}
+              </span><br>
+              <span>{{ entry.object_repr }}</span>
+            </td>
+            <td class="td-muted" style="white-space:nowrap; text-align:right;">
+              {{ entry.user }}<br>
+              {{ entry.action_time|date:"M d, H:i" }}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-panel">No admin actions yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Recent login activity #}
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-head-title">Recent Login Activity</span>
+        <a href="{% url 'admin:users_useractivitylog_changelist' %}">View all</a>
+      </div>
+      <div class="panel-body">
+        {% if recent_activity %}
+        <table class="dash-table">
+          <thead>
+            <tr>
+              <th>User / Action</th>
+              <th style="text-align:right;">IP / Time</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for log in recent_activity %}
+          <tr>
+            <td>
+              <span style="font-weight:600;">{{ log.user }}</span><br>
+              <span class="td-muted">{{ log.action }}</span>
+            </td>
+            <td class="td-muted" style="white-space:nowrap; text-align:right;">
+              {{ log.ip_address }}<br>
+              {{ log.timestamp|date:"M d, H:i" }}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-panel">No activity logged yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  {# ------------------------------------------------------------------ #}
+  {# Low / reorder stock panel                                           #}
+  {# ------------------------------------------------------------------ #}
+  {% if low_stock_items %}
+  <div class="panel" style="margin-bottom:28px;">
+    <div class="panel-head">
+      <span class="panel-head-title">Stock Alerts</span>
+      <a href="{% url 'admin:inventory_inventory_changelist' %}">View all</a>
+    </div>
+    <div class="panel-body">
+      <table class="dash-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Site</th>
+            <th>Qty</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in low_stock_items %}
+        <tr>
+          <td><a href="{% url 'admin:inventory_inventory_change' item.pk %}">{{ item.product }}</a></td>
+          <td class="td-muted">{{ item.site }}</td>
+          <td style="font-weight:700;">{{ item.quantity_on_hand }}</td>
+          <td><span class="badge badge-warn">{{ item.reorder_status }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# All models — flat table, no app headers                            #}
+  {# ------------------------------------------------------------------ #}
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-head-title">All Models</span>
+    </div>
+    <table class="dash-table" style="width:100%;">
+      <thead>
+        <tr>
+          <th style="padding:9px 14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--body-quiet-color); background:var(--darkened-bg); border-bottom:1px solid var(--border-color); text-align:left;">Model</th>
+          <th style="padding:9px 14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--body-quiet-color); background:var(--darkened-bg); border-bottom:1px solid var(--border-color); text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for app in app_list %}
+          {% for model in app.models %}
+          <tr>
+            <td>
+              {% if model.admin_url %}
+                <a href="{{ model.admin_url }}" style="font-weight:500; color:var(--body-fg); text-decoration:none;">{{ model.name }}</a>
+              {% else %}
+                <span style="font-weight:500;">{{ model.name }}</span>
+              {% endif %}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">
+              {% if model.admin_url %}
+                <a href="{{ model.admin_url }}" style="font-size:12px; color:var(--body-quiet-color); text-decoration:none; margin-left:12px;">List</a>
+              {% endif %}
+              {% if model.add_url %}
+                <a href="{{ model.add_url }}" style="font-size:12px; color:var(--body-quiet-color); text-decoration:none; margin-left:12px;">Add</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

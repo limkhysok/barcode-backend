@@ -1,0 +1,192 @@
+{% extends "admin/base.html" %}
+{% load static i18n %}
+
+{% block title %}{{ title }} | Barcode Admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/custom.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+  (function () {
+    const saved = localStorage.getItem('adminTheme');
+    const prefersDark = globalThis.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+  })();
+
+  function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('adminTheme', next);
+    updateThemeLabel();
+  }
+
+  function updateThemeLabel() {
+    const label = document.getElementById('themeLabel');
+    if (label) {
+      label.textContent = document.documentElement.dataset.theme === 'dark'
+        ? 'Switch to Light' : 'Switch to Dark';
+    }
+  }
+
+  function toggleUserMenu() {
+    const dropdown = document.getElementById('userMenuDropdown');
+    const trigger  = document.getElementById('userMenuTrigger');
+    const open = !dropdown.hidden;
+    dropdown.hidden = open;
+    trigger.setAttribute('aria-expanded', String(!open));
+    if (!open) updateThemeLabel();
+  }
+
+  function closeUserMenu() {
+    const dropdown = document.getElementById('userMenuDropdown');
+    const trigger  = document.getElementById('userMenuTrigger');
+    if (dropdown) { dropdown.hidden = true; }
+    if (trigger)  { trigger.setAttribute('aria-expanded', 'false'); }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    updateThemeLabel();
+
+    // Active nav link
+    const path = globalThis.location.pathname;
+    document.querySelectorAll('.nav-link').forEach(function (link) {
+      if (path.startsWith(link.getAttribute('href'))) {
+        link.classList.add('nav-link--active');
+      }
+    });
+    const dash = document.querySelector('.nav-link[data-exact]');
+    if (dash) {
+      dash.classList.toggle('nav-link--active', path === dash.getAttribute('href'));
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function (e) {
+      const menu = document.getElementById('userMenu');
+      if (menu && !menu.contains(e.target)) closeUserMenu();
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeUserMenu();
+    });
+  });
+</script>
+{% endblock %}
+
+{% block header %}
+<header id="header">
+
+  {# ── Brand ── #}
+  <a class="nav-brand" href="{% url 'admin:index' %}">
+    <span class="nav-brand-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="2" height="16"/><rect x="7" y="4" width="1" height="16"/>
+        <rect x="10" y="4" width="2" height="16"/><rect x="14" y="4" width="1" height="16"/>
+        <rect x="17" y="4" width="3" height="16"/>
+      </svg>
+    </span>
+    <span>Barcode Admin</span>
+  </a>
+
+  {# ── Nav links ── #}
+  {% if user.is_active and user.is_staff %}
+  <nav class="nav-links" aria-label="Main navigation">
+
+    <a class="nav-link" href="{% url 'admin:index' %}" data-exact title="Dashboard">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <span class="nav-link-label">Dashboard</span>
+    </a>
+
+    <div class="nav-divider" aria-hidden="true"></div>
+
+    <a class="nav-link" href="{% url 'admin:products_product_changelist' %}" title="Products">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      <span class="nav-link-label">Products</span>
+    </a>
+
+    <a class="nav-link" href="{% url 'admin:inventory_inventory_changelist' %}" title="Inventory">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span class="nav-link-label">Inventory</span>
+    </a>
+
+    <a class="nav-link" href="{% url 'admin:transactions_transaction_changelist' %}" title="Transactions">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span class="nav-link-label">Transactions</span>
+    </a>
+
+    <a class="nav-link" href="{% url 'admin:users_user_changelist' %}" title="Users">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="nav-link-label">Users</span>
+    </a>
+
+  </nav>
+  {% endif %}
+
+  {# ── User dropdown ── #}
+  {% if user.is_active and user.is_staff %}
+  <div class="nav-right">
+    <div class="nav-user-menu" id="userMenu">
+
+      {# Trigger #}
+      <button class="nav-user-trigger" id="userMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="userMenuDropdown" onclick="toggleUserMenu()">
+        <span class="nav-user-avatar" aria-hidden="true">{{ user.get_username|slice:":2" }}</span>
+        <span class="nav-user-info">
+          <span class="nav-user-name">{{ user.get_short_name|default:user.get_username }}</span>
+          <span class="nav-user-role">{% if user.is_superuser %}Superuser{% elif user.is_staff %}Staff{% else %}User{% endif %}</span>
+        </span>
+        <svg class="nav-user-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      {# Dropdown panel #}
+      <div class="nav-dropdown" id="userMenuDropdown" role="menu" aria-labelledby="userMenuTrigger" hidden>
+
+        {# Header #}
+        <div class="nav-dropdown-header">
+          <span class="nav-dropdown-name">{{ user.get_short_name|default:user.get_username }}</span>
+          <span class="nav-dropdown-email">{{ user.email }}</span>
+        </div>
+
+        <div class="nav-dropdown-divider"></div>
+
+        {# Profile #}
+        <a class="nav-dropdown-item" href="{% url 'admin:users_user_change' user.pk %}" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          View Profile
+        </a>
+
+        {# Change password #}
+        {% if user.has_usable_password %}
+        <a class="nav-dropdown-item" href="{% url 'admin:password_change' %}" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Change Password
+        </a>
+        {% endif %}
+
+        {# Theme toggle #}
+        <button class="nav-dropdown-item" onclick="toggleTheme(); closeUserMenu();" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <span id="themeLabel">Toggle Theme</span>
+        </button>
+
+        <div class="nav-dropdown-divider"></div>
+
+        {# Logout #}
+        <form method="post" action="{% url 'admin:logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="nav-dropdown-item nav-dropdown-danger" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Log Out
+          </button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</header>
+{% endblock %}

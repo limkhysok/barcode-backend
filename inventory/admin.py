@@ -1,7 +1,8 @@
 from django.contrib import admin
+from core.admin_site import admin_site
 from .models import Inventory
 
-@admin.register(Inventory)
+@admin.register(Inventory, site=admin_site)
 class InventoryAdmin(admin.ModelAdmin):
     list_display = (
         'row_number', 'product', 'site', 'location',

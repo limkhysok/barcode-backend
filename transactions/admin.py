@@ -1,4 +1,5 @@
 from django.contrib import admin
+from core.admin_site import admin_site
 from .models import Transaction, TransactionItem
 
 
@@ -14,7 +15,7 @@ class TransactionItemInline(admin.TabularInline):
         return obj.quantity * obj.cost_per_unit
 
 
-@admin.register(Transaction)
+@admin.register(Transaction, site=admin_site)
 class TransactionAdmin(admin.ModelAdmin):
     list_display = (
         'row_number', 'transaction_type', 'performed_by',
@@ -30,7 +31,7 @@ class TransactionAdmin(admin.ModelAdmin):
         return obj.id
 
 
-@admin.register(TransactionItem)
+@admin.register(TransactionItem, site=admin_site)
 class TransactionItemAdmin(admin.ModelAdmin):
     list_display = (
         'row_number', 'transaction', 'inventory',
