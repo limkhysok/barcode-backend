@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import UserActivityLog
 
 User = get_user_model()
 
@@ -46,3 +47,43 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
             instance.save()
         return instance
+
+
+class UserAdminSerializer(serializers.ModelSerializer):
+    """Full serializer for admin — role fields are writable."""
+    class Meta:
+        model = User
+        fields = (
+            'id', 'username', 'email', 'name', 'password',
+            'is_boss', 'is_staff', 'is_superuser', 'is_active',
+            'date_joined', 'last_login',
+        )
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+            'date_joined': {'read_only': True},
+            'last_login': {'read_only': True},
+        }
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        instance = self.Meta.model(**validated_data)
+        if password is not None:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        instance = super().update(instance, validated_data)
+        if password is not None:
+            instance.set_password(password)
+            instance.save()
+        return instance
+
+
+class UserActivityLogSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = UserActivityLog
+        fields = ('id', 'user', 'username', 'action', 'timestamp', 'ip_address', 'details')
