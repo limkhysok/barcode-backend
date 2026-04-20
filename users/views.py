@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from .serializers import UserSerializer, UserAdminSerializer, UserActivityLogSerializer
 from .models import UserActivityLog
+from .permissions import IsAdminOrBoss
 
 User = get_user_model()
 
@@ -60,25 +61,13 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
         )
 
 
-class IsAdminOrBoss(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and (
-            request.user.is_staff or request.user.is_superuser or request.user.is_boss
-        )
-
-
-class IsSuperuserOrStaff(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and (
-            request.user.is_staff or request.user.is_superuser
-        )
 
 
 class AdminUserListView(generics.ListCreateAPIView):
     """Admin: list all users or create a new user."""
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserAdminSerializer
-    permission_classes = (IsSuperuserOrStaff,)
+    permission_classes = (IsAdminOrBoss,)
 
     def perform_create(self, serializer):
         user = serializer.save()
@@ -94,7 +83,7 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Admin: view, edit, or delete a specific user."""
     queryset = User.objects.all()
     serializer_class = UserAdminSerializer
-    permission_classes = (IsSuperuserOrStaff,)
+    permission_classes = (IsAdminOrBoss,)
 
     def perform_update(self, serializer):
         serializer.save()
@@ -118,7 +107,7 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
 class AdminUserLogsView(generics.ListAPIView):
     """Admin: list activity logs for a specific user."""
     serializer_class = UserActivityLogSerializer
-    permission_classes = (IsSuperuserOrStaff,)
+    permission_classes = (IsAdminOrBoss,)
 
     def get_queryset(self):
         user = get_object_or_404(User, pk=self.kwargs['pk'])
@@ -128,5 +117,5 @@ class AdminUserLogsView(generics.ListAPIView):
 class AdminAllLogsView(generics.ListAPIView):
     """Admin: list all user activity logs across the system."""
     serializer_class = UserActivityLogSerializer
-    permission_classes = (IsSuperuserOrStaff,)
+    permission_classes = (IsAdminOrBoss,)
     queryset = UserActivityLog.objects.select_related('user').order_by('-timestamp')

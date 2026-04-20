@@ -72,6 +72,13 @@ class UserAdminSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and not request.user.is_superuser:
+            attrs.pop('is_superuser', None)
+            attrs.pop('is_staff', None)
+        return attrs
+
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
         instance = super().update(instance, validated_data)

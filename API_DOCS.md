@@ -10,17 +10,18 @@ This backend uses **Django Rest Framework** and **SimpleJWT** for secure authent
 
 All protected endpoints enforce the following permission rules based on the user's role:
 
-| Method | Staff | Boss | Superadmin |
-|--------|-------|------|------------|
-| `GET` — view/list | ✅ | ✅ | ✅ |
-| `POST` — create | ✅ | ✅ | ✅ |
-| `PUT` / `PATCH` — edit | ❌ 403 | ✅ | ✅ |
-| `DELETE` | ❌ 403 | ❌ 403 | ✅ |
+| Method | Regular user | Staff | Boss | Superadmin |
+|--------|-------------|-------|------|------------|
+| `GET` — view/list | ✅ | ✅ | ✅ | ✅ |
+| `POST` — create | ✅ | ✅ | ✅ | ✅ |
+| `PUT` / `PATCH` — edit | ❌ 403 | ✅ | ✅ | ✅ |
+| `DELETE` | ❌ 403 | ❌ 403 | ❌ 403 | ✅ |
 
 > **Role mapping:**
-> - **Staff** — any authenticated user (`is_boss: false`, `is_superuser: false`)
-> - **Boss** — user with `is_boss: true`
-> - **Superadmin** — user with `is_superuser: true`
+> - **Regular user** — authenticated user with no special flags (`is_staff: false`, `is_boss: false`, `is_superuser: false`)
+> - **Staff** — user with `is_staff: true` (can edit, cannot delete)
+> - **Boss** — user with `is_boss: true` (can edit, cannot delete)
+> - **Superadmin** — user with `is_superuser: true` (full access)
 
 > **Exception:** `PATCH /api/v1/users/me` is available to all authenticated users regardless of role (users can always update their own profile).
 
@@ -989,4 +990,125 @@ Same shape as `POST /api/transactions` — full transaction object with one item
 2. If **400 with inventory list** → show site picker → re-submit with `inventory_id`
 3. If **404** → show "Unknown barcode" or "Not in inventory" message
 4. If **201** → show success with `total_transaction_value` and updated stock
+
+---
+
+## 10. Admin User Management
+
+Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superuser`.**
+
+> **Field restriction:** `is_superuser` and `is_staff` fields are only writable by a superadmin. If a boss or staff user sends these fields, they are silently ignored.
+
+- **Base Endpoint:** `/api/v1/users/admin/`
+- **Methods:**
+  - `GET /api/v1/users/admin/users/` — List all users → `200 OK`
+  - `POST /api/v1/users/admin/users/` — Create a new user → `201 Created`
+  - `GET /api/v1/users/admin/users/<id>/` — Retrieve a user → `200 OK`
+  - `PUT /api/v1/users/admin/users/<id>/` — Full replace of a user → `200 OK`
+  - `PATCH /api/v1/users/admin/users/<id>/` — Partial update of a user → `200 OK`
+  - `DELETE /api/v1/users/admin/users/<id>/` — Delete a user → `204 No Content`
+  - `GET /api/v1/users/admin/users/<id>/logs/` — List activity logs for a user → `200 OK`
+  - `GET /api/v1/users/admin/logs/` — List all activity logs across all users → `200 OK`
+
+---
+
+### List Users (GET)
+`GET /api/v1/users/admin/users/` — returns all users, newest first.
+
+#### Response (200 OK)
+```json
+[
+  {
+    "id": 2,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "name": "John Doe",
+    "is_boss": false,
+    "is_staff": false,
+    "is_superuser": false,
+    "is_active": true,
+    "date_joined": "2026-03-25T08:00:00Z",
+    "last_login": "2026-04-20T09:30:00Z"
+  }
+]
+```
+
+---
+
+### Create User (POST)
+`POST /api/v1/users/admin/users/`
+
+#### Payload
+```json
+{
+  "username": "new_user",
+  "email": "new@example.com",
+  "name": "New User",
+  "password": "secure_password",
+  "is_boss": false,
+  "is_active": true
+}
+```
+
+| Field | Required | Writable by | Description |
+|-------|----------|-------------|-------------|
+| `username` | Yes | All | Unique login name |
+| `email` | No | All | Email address |
+| `name` | No | All | Display name |
+| `password` | Yes | All | Password (write-only, never returned) |
+| `is_boss` | No | All | Grant boss-level edit rights |
+| `is_active` | No | All | Set to `false` to deactivate without deleting |
+| `is_staff` | No | **Superadmin only** | Grant staff-level edit rights |
+| `is_superuser` | No | **Superadmin only** | Grant full admin rights |
+
+#### Success (201 Created) — returns the created user object
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | `username` missing or taken | `{ "username": ["A user with that username already exists."] }` |
+| `400 Bad Request` | `password` missing | `{ "password": ["This field is required."] }` |
+
+---
+
+### Retrieve / Update / Delete User
+- `GET /api/v1/users/admin/users/<id>/` — returns the user object
+- `PUT /api/v1/users/admin/users/<id>/` — full replace (same fields as POST)
+- `PATCH /api/v1/users/admin/users/<id>/` — partial update (send only fields to change)
+- `DELETE /api/v1/users/admin/users/<id>/` — deletes the user permanently
+
+> Deleting a user is **logged** before deletion. All their activity logs are also deleted (cascade).
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `404 Not Found` | User not found | `{ "detail": "No User matches the given query." }` |
+
+---
+
+### User Activity Logs (GET)
+`GET /api/v1/users/admin/users/<id>/logs/` — returns all activity logs for a specific user, newest first.
+
+`GET /api/v1/users/admin/logs/` — returns all activity logs across every user, newest first.
+
+#### Response (200 OK)
+```json
+[
+  {
+    "id": 12,
+    "user": 2,
+    "username": "john_doe",
+    "action": "login",
+    "timestamp": "2026-04-20T09:30:00Z",
+    "ip_address": "192.168.1.10",
+    "details": ""
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `action` | One of: `login`, `logout`, `register`, `profile_update`, `password_change`, `other` |
+| `ip_address` | IP of the request (supports `X-Forwarded-For` for proxied environments) |
+| `details` | Free-text context (e.g. `"Created by admin john_doe"`, `"Account deleted by admin ..."`) |
 
