@@ -993,7 +993,152 @@ Same shape as `POST /api/transactions` — full transaction object with one item
 
 ---
 
-## 10. Admin User Management
+## 10. Dashboard Stats
+
+Aggregate stats scoped to a date range — used to power the main dashboard page.
+
+- **Endpoint:** `GET /api/v1/dashboard/stats/`
+- **Auth required:** Yes
+
+### Query Parameters
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `range` | string | `today` | Date range label (see table below) |
+| `start` | `YYYY-MM-DD` | — | Required only when `range=custom` |
+| `end` | `YYYY-MM-DD` | — | Required only when `range=custom` |
+
+### Supported `range` Values
+
+| Value | Window |
+|-------|--------|
+| `today` | Midnight → end of today (server timezone) |
+| `7_days` | Last 7 days including today |
+| `14_days` | Last 14 days including today |
+| `30_days` | Last 30 days including today |
+| `3_months` | Last 90 days including today |
+| `12_months` | Last 365 days including today |
+| `all_time` | No date filter — returns all-time totals |
+| `custom` | Requires `start` and `end` params (`YYYY-MM-DD`) |
+
+> All rolling windows are **inclusive of today** and count backwards. `7_days` = today + 6 previous days.
+
+### Examples
+
+```
+GET /api/v1/dashboard/stats/
+GET /api/v1/dashboard/stats/?range=7_days
+GET /api/v1/dashboard/stats/?range=30_days
+GET /api/v1/dashboard/stats/?range=12_months
+GET /api/v1/dashboard/stats/?range=all_time
+GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
+```
+
+### Response (200 OK)
+
+```json
+{
+  "range": {
+    "label": "7_days",
+    "start": "2026-04-15T00:00:00+07:00",
+    "end": "2026-04-21T23:59:59.999999+07:00"
+  },
+  "products": {
+    "total": 12,
+    "by_category": [
+      { "category": "Fasteners", "count": 8 },
+      { "category": "Accessories", "count": 4 }
+    ],
+    "low_stock": 3,
+    "out_of_stock": 1
+  },
+  "inventory": {
+    "total_records": 42,
+    "total_quantity": 12500,
+    "total_stock_value": "13250.00",
+    "needs_reorder": 5,
+    "by_site": [
+      {
+        "site": "Warehouse A",
+        "records": 25,
+        "total_quantity": 8000,
+        "total_stock_value": "8500.00"
+      }
+    ]
+  },
+  "transactions": {
+    "total": 38,
+    "by_type": {
+      "Receive": { "count": 24, "total_quantity": 480 },
+      "Sale":    { "count": 14, "total_quantity": 120 }
+    },
+    "recent_activity": [
+      {
+        "id": 101,
+        "transaction_type": "Sale",
+        "transaction_date": "2026-04-21T09:15:00Z",
+        "performed_by": "staff_user",
+        "item_count": 2,
+        "total_quantity": 15
+      }
+    ]
+  }
+}
+```
+
+### Response Fields
+
+**`range`**
+| Field | Description |
+|-------|-------------|
+| `label` | Resolved label (echoes back the `range` param, or `"today"` if an unknown value was given) |
+| `start` | ISO 8601 datetime — start of the window (`null` for `all_time`) |
+| `end` | ISO 8601 datetime — end of the window (`null` for `all_time`) |
+
+**`products`** — scoped by `created_at`
+| Field | Description |
+|-------|-------------|
+| `total` | Products created within the range |
+| `by_category` | Array of `{ category, count }` — categories of products in range |
+| `low_stock` | Inventory records for in-range products where `reorder_status = "Yes"` |
+| `out_of_stock` | Inventory records for in-range products where `quantity_on_hand = 0` |
+
+**`inventory`** — scoped by `updated_at`
+| Field | Description |
+|-------|-------------|
+| `total_records` | Inventory records touched within the range |
+| `total_quantity` | Sum of `quantity_on_hand` across those records |
+| `total_stock_value` | Sum of `stock_value` (string — treat as decimal) |
+| `needs_reorder` | Count of records where `reorder_status = "Yes"` |
+| `by_site` | Breakdown per site with `records`, `total_quantity`, `total_stock_value` |
+
+**`transactions`** — scoped by `transaction_date`
+| Field | Description |
+|-------|-------------|
+| `total` | Total transactions in range |
+| `by_type` | `Receive` and `Sale` keys, each with `count` and `total_quantity` |
+| `recent_activity` | Last 10 transactions in range, newest first |
+| `recent_activity[].item_count` | Number of line items in the transaction |
+| `recent_activity[].total_quantity` | Absolute sum of all item quantities |
+
+### Error Responses
+
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400` | Unknown `range` value | `{ "detail": "Invalid range. Valid options: 12_months, 14_days, ..." }` |
+| `400` | `range=custom` with missing/invalid `start` or `end` | `{ "detail": "Invalid date format for custom range. Use YYYY-MM-DD for start and end." }` |
+| `400` | `start` is after `end` | `{ "detail": "start must be before or equal to end." }` |
+
+### Frontend Integration Notes
+
+- For `all_time`, `range.start` and `range.end` will both be `null` — guard against this before formatting dates.
+- `total_stock_value` is a string — parse with `parseFloat()` or a decimal library before arithmetic.
+- `by_type` may be missing a key entirely if no transactions of that type exist in the range — always default: `stats.by_type?.Sale ?? { count: 0, total_quantity: 0 }`.
+- The `recent_activity` list is already limited to 10 — no pagination needed.
+
+---
+
+## 11. Admin User Management
 
 Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superuser`.**
 

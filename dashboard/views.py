@@ -11,11 +11,18 @@ from products.models import Product
 from transactions.models import Transaction
 
 
+VALID_RANGES = {"today", "7_days", "14_days", "30_days", "3_months", "12_months", "all_time", "custom"}
+
+
 def _resolve_date_range(range_label, start_param, end_param):
     """
     Return (range_start, range_end, resolved_label).
-    Supported values: today, week, month, all_time, custom.
+
+    Supported range_label values:
+      today | 7_days | 14_days | 30_days | 3_months | 12_months | all_time | custom
+
     Returns (None, None, 'all_time') when no date filtering should apply.
+    Returns (None, None, 'invalid_custom') when custom dates are missing/malformed.
     """
     now = timezone.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -24,11 +31,20 @@ def _resolve_date_range(range_label, start_param, end_param):
     if range_label == "today":
         return today_start, today_end, "today"
 
-    if range_label == "week":
-        return today_start - timedelta(days=6), today_end, "week"
+    if range_label == "7_days":
+        return today_start - timedelta(days=6), today_end, "7_days"
 
-    if range_label == "month":
-        return today_start.replace(day=1), today_end, "month"
+    if range_label == "14_days":
+        return today_start - timedelta(days=13), today_end, "14_days"
+
+    if range_label == "30_days":
+        return today_start - timedelta(days=29), today_end, "30_days"
+
+    if range_label == "3_months":
+        return today_start - timedelta(days=89), today_end, "3_months"
+
+    if range_label == "12_months":
+        return today_start - timedelta(days=364), today_end, "12_months"
 
     if range_label == "all_time":
         return None, None, "all_time"
@@ -38,7 +54,7 @@ def _resolve_date_range(range_label, start_param, end_param):
             start = date_cls.fromisoformat(start_param)
             end = date_cls.fromisoformat(end_param)
         except (TypeError, ValueError):
-            return None, None, "custom"
+            return None, None, "invalid_custom"
         range_start = timezone.make_aware(
             timezone.datetime(start.year, start.month, start.day, 0, 0, 0)
         )
@@ -56,13 +72,14 @@ class DashboardStatsView(APIView):
     GET /api/v1/dashboard/stats/
 
     Query params:
-      - range : today | week | month | custom  (default: today)
+      - range : today | 7_days | 14_days | 30_days | 3_months | 12_months | all_time | custom
+                (default: today)
       - start : YYYY-MM-DD  (required when range=custom)
       - end   : YYYY-MM-DD  (required when range=custom)
 
     All three data entities are scoped to the selected date range:
-      - products    → created_at in range
-      - inventory   → updated_at in range (records touched during the period)
+      - products     → created_at in range
+      - inventory    → updated_at in range
       - transactions → transaction_date in range
     """
 
@@ -71,11 +88,17 @@ class DashboardStatsView(APIView):
         start_param = request.query_params.get("start")
         end_param = request.query_params.get("end")
 
+        if range_label not in VALID_RANGES:
+            return Response(
+                {"detail": f"Invalid range. Valid options: {', '.join(sorted(VALID_RANGES))}."},
+                status=400,
+            )
+
         range_start, range_end, resolved_label = _resolve_date_range(
             range_label, start_param, end_param
         )
 
-        if range_start is None and resolved_label == "custom":
+        if resolved_label == "invalid_custom":
             return Response(
                 {"detail": "Invalid date format for custom range. Use YYYY-MM-DD for start and end."},
                 status=400,

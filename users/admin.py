@@ -7,7 +7,7 @@ from django.contrib.sessions.models import Session
 from django.utils.html import format_html
 from django.utils import timezone
 from core.admin_site import admin_site
-from .models import User, UserActivityLog
+from .models import User, UserActivity
 
 
 ACTION_ICONS = {
@@ -55,16 +55,16 @@ class AdminActionLogInline(admin.TabularInline):
         return False
 
 
-class UserActivityLogInline(admin.TabularInline):
+class UserActivityInline(admin.TabularInline):
     """Shows login/logout/register activity logged by our app."""
 
-    model = UserActivityLog
+    model = UserActivity
     extra = 0
-    readonly_fields = ("action", "timestamp", "ip_address", "details")
+    readonly_fields = ("action", "timestamp", "ip_address", "user_agent", "details")
     can_delete = False
     max_num = 0
-    verbose_name = "Activity Log"
-    verbose_name_plural = "Login / API Activity Logs"
+    verbose_name = "Activity"
+    verbose_name_plural = "User Activities"
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -101,17 +101,17 @@ class UserAdmin(BaseUserAdmin):
     list_filter = ("is_boss", "is_staff", "is_superuser", "is_active")
     list_editable = ("is_boss", "is_active")
     ordering = ("-date_joined",)
-    inlines = [UserActivityLogInline, AdminActionLogInline]
+    inlines = [UserActivityInline, AdminActionLogInline]
 
     def activity_log_count(self, obj):
-        count = obj.activity_logs.count()
+        count = obj.activities.count()
         return format_html(
-            '<a href="/admin/users/useractivitylog/?user__id__exact={}">{}</a>',
+            '<a href="/admin/users/useractivity/?user__id__exact={}">{}</a>',
             obj.pk,
             count,
         )
 
-    activity_log_count.short_description = "Login Logs"
+    activity_log_count.short_description = "Activities"
 
     def admin_action_count(self, obj):
         count = LogEntry.objects.filter(user=obj).count()
@@ -124,19 +124,19 @@ class UserAdmin(BaseUserAdmin):
     admin_action_count.short_description = "Admin Actions"
 
 
-@admin.register(UserActivityLog, site=admin_site)
-class UserActivityLogAdmin(admin.ModelAdmin):
-    list_display = ("user", "action", "timestamp", "ip_address", "details_short")
+@admin.register(UserActivity, site=admin_site)
+class UserActivityAdmin(admin.ModelAdmin):
+    list_display = ("user", "action", "timestamp", "ip_address", "user_agent_short", "details")
     list_filter = ("action", "timestamp")
-    search_fields = ("user__username", "user__email", "ip_address", "details")
-    readonly_fields = ("user", "action", "timestamp", "ip_address", "details")
+    search_fields = ("user__username", "user__email", "ip_address", "user_agent")
+    readonly_fields = ("user", "action", "timestamp", "ip_address", "user_agent", "details")
     ordering = ("-timestamp",)
     date_hierarchy = "timestamp"
 
-    def details_short(self, obj):
-        return obj.details[:80] + "..." if len(obj.details) > 80 else obj.details
+    def user_agent_short(self, obj):
+        return obj.user_agent[:60] + "..." if len(obj.user_agent) > 60 else obj.user_agent
 
-    details_short.short_description = "Details"
+    user_agent_short.short_description = "User Agent"
 
     def has_add_permission(self, request):
         return False

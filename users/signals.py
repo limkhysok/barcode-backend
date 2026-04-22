@@ -1,31 +1,44 @@
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.dispatch import receiver
-from .models import UserActivityLog
+from axes.signals import user_locked_out
+from ipware import get_client_ip
+from .models import UserActivity
 
 
-def _get_ip(request):
-    if request is None:
-        return None
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded:
-        return x_forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+def _get_ua(request):
+    return request.META.get('HTTP_USER_AGENT', '') if request else ''
 
 
 @receiver(user_logged_in)
 def on_user_login(sender, request, user, **kwargs):
-    UserActivityLog.objects.create(
+    ip, _ = get_client_ip(request)
+    UserActivity.objects.create(
         user=user,
         action='login',
-        ip_address=_get_ip(request),
+        ip_address=ip,
+        user_agent=_get_ua(request),
     )
 
 
 @receiver(user_logged_out)
 def on_user_logout(sender, request, user, **kwargs):
     if user:
-        UserActivityLog.objects.create(
+        ip, _ = get_client_ip(request)
+        UserActivity.objects.create(
             user=user,
             action='logout',
-            ip_address=_get_ip(request),
+            ip_address=ip,
+            user_agent=_get_ua(request),
         )
+
+
+@receiver(user_locked_out)
+def on_user_locked_out(sender, request, username, ip_address, **kwargs):
+    ip, _ = get_client_ip(request)
+    UserActivity.objects.create(
+        user=None,
+        action='login_failed',
+        ip_address=ip,
+        user_agent=_get_ua(request),
+        details={'username': username, 'locked_out': True},
+    )

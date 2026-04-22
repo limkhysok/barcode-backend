@@ -9,26 +9,29 @@ class User(AbstractUser):
         return self.username
 
 
-class UserActivityLog(models.Model):
+class UserActivity(models.Model):
     ACTION_CHOICES = [
         ('login', 'Login'),
         ('logout', 'Logout'),
+        ('login_failed', 'Login Failed'),
         ('register', 'Register'),
         ('profile_update', 'Profile Update'),
         ('password_change', 'Password Change'),
         ('other', 'Other'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='activity_logs')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
     timestamp = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    details = models.TextField(blank=True)
+    user_agent = models.TextField(blank=True)
+    details = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ['-timestamp']
-        verbose_name = 'User Activity Log'
-        verbose_name_plural = 'User Activity Logs'
+        verbose_name = 'User Activity'
+        verbose_name_plural = 'User Activities'
 
     def __str__(self):
-        return f'{self.user.username} — {self.action} at {self.timestamp:%Y-%m-%d %H:%M}'
+        username = self.user.username if self.user else 'anonymous'
+        return f'{username} — {self.action} at {self.timestamp:%Y-%m-%d %H:%M}'

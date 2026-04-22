@@ -2,21 +2,24 @@ from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
-from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from .serializers import UserSerializer, UserAdminSerializer, UserActivityLogSerializer
-from .models import UserActivityLog
+from ipware import get_client_ip
+from .serializers import UserSerializer, UserAdminSerializer, UserActivitySerializer, CustomTokenObtainPairSerializer
+from .models import UserActivity
 from .permissions import IsAdminOrBoss
 
 User = get_user_model()
 
 
-def get_client_ip(request):
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded:
-        return x_forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+def _get_ip(request):
+    ip, _ = get_client_ip(request)
+    return ip
+
+
+def _get_ua(request):
+    return request.META.get('HTTP_USER_AGENT', '')
 
 
 @api_view(['GET'])
@@ -31,6 +34,23 @@ def api_root(request, format=None):
     })
 
 
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            username = request.data.get('username', '')
+            user = User.objects.filter(username=username).first()
+            UserActivity.objects.create(
+                user=user,
+                action='login',
+                ip_address=_get_ip(request),
+                user_agent=_get_ua(request),
+            )
+        return response
+
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.AllowAny,)
@@ -38,10 +58,11 @@ class RegisterView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        UserActivityLog.objects.create(
+        UserActivity.objects.create(
             user=user,
             action='register',
-            ip_address=get_client_ip(self.request),
+            ip_address=_get_ip(self.request),
+            user_agent=_get_ua(self.request),
         )
 
 
@@ -54,10 +75,11 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         serializer.save()
-        UserActivityLog.objects.create(
+        UserActivity.objects.create(
             user=self.request.user,
             action='profile_update',
-            ip_address=get_client_ip(self.request),
+            ip_address=_get_ip(self.request),
+            user_agent=_get_ua(self.request),
         )
 
 
@@ -71,11 +93,12 @@ class AdminUserListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        UserActivityLog.objects.create(
+        UserActivity.objects.create(
             user=user,
             action='register',
-            ip_address=get_client_ip(self.request),
-            details=f'Created by admin {self.request.user.username}',
+            ip_address=_get_ip(self.request),
+            user_agent=_get_ua(self.request),
+            details={'created_by': self.request.user.username},
         )
 
 
@@ -87,35 +110,37 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save()
-        UserActivityLog.objects.create(
+        UserActivity.objects.create(
             user=serializer.instance,
             action='profile_update',
-            ip_address=get_client_ip(self.request),
-            details=f'Updated by admin {self.request.user.username}',
+            ip_address=_get_ip(self.request),
+            user_agent=_get_ua(self.request),
+            details={'updated_by': self.request.user.username},
         )
 
     def perform_destroy(self, instance):
-        UserActivityLog.objects.create(
+        UserActivity.objects.create(
             user=instance,
             action='other',
-            ip_address=get_client_ip(self.request),
-            details=f'Account deleted by admin {self.request.user.username}',
+            ip_address=_get_ip(self.request),
+            user_agent=_get_ua(self.request),
+            details={'deleted_by': self.request.user.username},
         )
         instance.delete()
 
 
 class AdminUserLogsView(generics.ListAPIView):
     """Admin: list activity logs for a specific user."""
-    serializer_class = UserActivityLogSerializer
+    serializer_class = UserActivitySerializer
     permission_classes = (IsAdminOrBoss,)
 
     def get_queryset(self):
         user = get_object_or_404(User, pk=self.kwargs['pk'])
-        return UserActivityLog.objects.filter(user=user).order_by('-timestamp')
+        return UserActivity.objects.filter(user=user).order_by('-timestamp')
 
 
 class AdminAllLogsView(generics.ListAPIView):
     """Admin: list all user activity logs across the system."""
-    serializer_class = UserActivityLogSerializer
+    serializer_class = UserActivitySerializer
     permission_classes = (IsAdminOrBoss,)
-    queryset = UserActivityLog.objects.select_related('user').order_by('-timestamp')
+    queryset = UserActivity.objects.select_related('user').order_by('-timestamp')

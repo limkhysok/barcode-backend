@@ -9,7 +9,7 @@ class BarcodeAdminSite(AdminSite):
     index_title = "Dashboard"
 
     def index(self, request, extra_context=None):
-        from users.models import User, UserActivityLog
+        from users.models import User, UserActivity
         from products.models import Product
         from inventory.models import Inventory
         from transactions.models import Transaction
@@ -19,7 +19,6 @@ class BarcodeAdminSite(AdminSite):
 
         now = timezone.now()
         week_ago = now - timedelta(days=7)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         stats = {
             # Users
@@ -43,7 +42,7 @@ class BarcodeAdminSite(AdminSite):
             # Activity
             "active_sessions": Session.objects.filter(expire_date__gte=now).count(),
             "admin_actions_week": LogEntry.objects.filter(action_time__gte=week_ago).count(),
-            "activity_logs_week": UserActivityLog.objects.filter(timestamp__gte=week_ago).count(),
+            "activity_logs_week": UserActivity.objects.filter(timestamp__gte=week_ago).count(),
         }
 
         recent_logs = (
@@ -52,7 +51,7 @@ class BarcodeAdminSite(AdminSite):
         )
 
         recent_activity = (
-            UserActivityLog.objects.select_related("user")
+            UserActivity.objects.select_related("user")
             .order_by("-timestamp")[:8]
         )
 

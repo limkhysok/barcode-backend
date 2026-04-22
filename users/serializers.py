@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import UserActivityLog
+from .models import UserActivity
 
 User = get_user_model()
 
@@ -88,9 +88,9 @@ class UserAdminSerializer(serializers.ModelSerializer):
         return instance
 
 
-class UserActivityLogSerializer(serializers.ModelSerializer):
+class UserActivitySerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
 
     class Meta:
-        model = UserActivityLog
-        fields = ('id', 'user', 'username', 'action', 'timestamp', 'ip_address', 'details')
+        model = UserActivity
+        fields = ('id', 'user', 'username', 'action', 'timestamp', 'ip_address', 'user_agent', 'details')
