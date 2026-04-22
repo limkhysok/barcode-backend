@@ -11,12 +11,24 @@ class User(AbstractUser):
 
 class UserActivity(models.Model):
     ACTION_CHOICES = [
+        # Auth
         ('login', 'Login'),
         ('logout', 'Logout'),
         ('login_failed', 'Login Failed'),
         ('register', 'Register'),
         ('profile_update', 'Profile Update'),
         ('password_change', 'Password Change'),
+        # Products
+        ('product_created', 'Product Created'),
+        ('product_updated', 'Product Updated'),
+        ('product_deleted', 'Product Deleted'),
+        # Inventory
+        ('inventory_created', 'Inventory Created'),
+        ('inventory_updated', 'Inventory Updated'),
+        ('inventory_deleted', 'Inventory Deleted'),
+        # Transactions
+        ('transaction_created', 'Transaction Created'),
+        ('transaction_deleted', 'Transaction Deleted'),
         ('other', 'Other'),
     ]
 

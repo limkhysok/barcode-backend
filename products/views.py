@@ -9,6 +9,7 @@ from rest_framework import status
 from .models import Product
 from .serializers import ProductSerializer
 from users.permissions import RBACPermission
+from users.utils import log_activity
 
 
 ALLOWED_ORDERINGS = {
@@ -102,6 +103,29 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+        obj = serializer.instance
+        log_activity(self.request, 'product_created', {
+            'product_id': obj.id,
+            'product_name': obj.product_name,
+            'barcode': obj.barcode,
+        })
+
+    def perform_update(self, serializer):
+        serializer.save()
+        obj = serializer.instance
+        log_activity(self.request, 'product_updated', {
+            'product_id': obj.id,
+            'product_name': obj.product_name,
+            'barcode': obj.barcode,
+        })
+
+    def perform_destroy(self, instance):
+        log_activity(self.request, 'product_deleted', {
+            'product_id': instance.id,
+            'product_name': instance.product_name,
+            'barcode': instance.barcode,
+        })
+        instance.delete()
 
     def destroy(self, request, *args, **kwargs):
         try:

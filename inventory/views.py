@@ -11,6 +11,7 @@ from .serializers import InventorySerializer
 from products.models import Product
 from products.serializers import ProductSerializer
 from users.permissions import RBACPermission
+from users.utils import log_activity
 
 
 
@@ -79,9 +80,31 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         self._save_and_refresh(serializer)
+        obj = serializer.instance
+        log_activity(self.request, 'inventory_created', {
+            'inventory_id': obj.id,
+            'product': obj.product.product_name,
+            'site': obj.site,
+            'quantity': obj.quantity_on_hand,
+        })
 
     def perform_update(self, serializer):
         self._save_and_refresh(serializer)
+        obj = serializer.instance
+        log_activity(self.request, 'inventory_updated', {
+            'inventory_id': obj.id,
+            'product': obj.product.product_name,
+            'site': obj.site,
+            'quantity': obj.quantity_on_hand,
+        })
+
+    def perform_destroy(self, instance):
+        log_activity(self.request, 'inventory_deleted', {
+            'inventory_id': instance.id,
+            'product': instance.product.product_name,
+            'site': instance.site,
+        })
+        instance.delete()
 
     def _build_activity(self, qs):
         """

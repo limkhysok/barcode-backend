@@ -12,6 +12,7 @@ from products.models import Product
 from inventory.models import Inventory
 from inventory.serializers import InventorySerializer
 from users.permissions import RBACPermission
+from users.utils import log_activity
 
 
 class TransactionViewSet(viewsets.ModelViewSet):
@@ -23,6 +24,21 @@ class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [RBACPermission]
     pagination_class = None
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_activity(self.request, 'transaction_created', {
+            'transaction_id': instance.id,
+            'type': instance.transaction_type,
+            'item_count': instance.items.count(),
+        })
+
+    def perform_destroy(self, instance):
+        log_activity(self.request, 'transaction_deleted', {
+            'transaction_id': instance.id,
+            'type': instance.transaction_type,
+        })
+        instance.delete()
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -235,6 +251,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
             context={'request': request}
         )
         if serializer.is_valid():
-            serializer.save()
+            txn = serializer.save()
+            log_activity(self.request, 'transaction_created', {
+                'transaction_id': txn.id,
+                'type': txn.transaction_type,
+                'item_count': 1,
+                'via': 'scan',
+            })
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

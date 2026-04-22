@@ -4,38 +4,112 @@
   <input type="search" id="nav-filter"
          placeholder="{% translate 'Start typing to filter…' %}"
          aria-label="{% translate 'Filter navigation items' %}">
-  {% if available_apps %}
-    <div class="module" id="nav-sidebar-models">
-      <table>
-        <thead class="visually-hidden">
-          <tr>
-            <th scope="col">{% translate 'Model name' %}</th>
-            <th scope="col">{% translate 'Add link' %}</th>
-          </tr>
-        </thead>
-        {% for app in available_apps %}
-          {% for model in app.models %}
-            {% with model_name=model.object_name|lower %}
-              <tr class="model-{{ model_name }}{% if model.admin_url in request.path|urlencode %} current-model{% endif %}">
-                <th scope="row" id="{{ app.app_label }}-{{ model_name }}">
-                  {% if model.admin_url %}
-                    <a href="{{ model.admin_url }}"{% if model.admin_url in request.path|urlencode %} aria-current="page"{% endif %}>{{ model.name }}</a>
-                  {% else %}
-                    {{ model.name }}
-                  {% endif %}
-                </th>
-                {% if model.add_url %}
-                  <td><a href="{{ model.add_url }}" class="addlink" aria-describedby="{{ app.app_label }}-{{ model_name }}">{% translate 'Add' %}</a></td>
-                {% else %}
-                  <td></td>
-                {% endif %}
-              </tr>
-            {% endwith %}
-          {% endfor %}
-        {% endfor %}
-      </table>
-    </div>
-  {% else %}
-    <p>{% translate "You don't have permission to view or edit anything." %}</p>
-  {% endif %}
+
+  <div class="module" id="nav-sidebar-models">
+
+    {# ── Products ─────────────────────────────────────────────────── #}
+    <table>
+      <thead>
+        <tr><th colspan="2" class="nav-group-header">Products</th></tr>
+      </thead>
+      <tbody>
+        <tr class="model-product{% if '/admin/products/product/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/products/product/">Products</a></th>
+          <td><a href="/admin/products/product/add/" class="addlink">Add</a></td>
+        </tr>
+      </tbody>
+    </table>
+
+    {# ── Inventory ────────────────────────────────────────────────── #}
+    <table>
+      <thead>
+        <tr><th colspan="2" class="nav-group-header">Inventory</th></tr>
+      </thead>
+      <tbody>
+        <tr class="model-inventory{% if '/admin/inventory/inventory/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/inventory/inventory/">Inventory</a></th>
+          <td><a href="/admin/inventory/inventory/add/" class="addlink">Add</a></td>
+        </tr>
+      </tbody>
+    </table>
+
+    {# ── Transactions ─────────────────────────────────────────────── #}
+    <table>
+      <thead>
+        <tr><th colspan="2" class="nav-group-header">Transactions</th></tr>
+      </thead>
+      <tbody>
+        <tr class="model-transaction{% if '/admin/transactions/transaction/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/transactions/transaction/">Transactions</a></th>
+          <td><a href="/admin/transactions/transaction/add/" class="addlink">Add</a></td>
+        </tr>
+        <tr class="model-transactionitem{% if '/admin/transactions/transactionitem/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/transactions/transactionitem/">Transaction Items</a></th>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    {# ── Users ────────────────────────────────────────────────────── #}
+    <table>
+      <thead>
+        <tr><th colspan="2" class="nav-group-header">Users</th></tr>
+      </thead>
+      <tbody>
+        <tr class="model-user{% if '/admin/users/user/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/users/user/">Users</a></th>
+          <td><a href="/admin/users/user/add/" class="addlink">Add</a></td>
+        </tr>
+        <tr class="model-useractivity{% if '/admin/users/useractivity/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/users/useractivity/">User Activities</a></th>
+          <td></td>
+        </tr>
+        <tr class="model-session{% if '/admin/sessions/session/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/sessions/session/">Sessions</a></th>
+          <td></td>
+        </tr>
+        <tr class="model-group{% if '/admin/auth/group/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/auth/group/">Groups</a></th>
+          <td><a href="/admin/auth/group/add/" class="addlink">Add</a></td>
+        </tr>
+        <tr class="model-permission{% if '/admin/auth/permission/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/auth/permission/">Permissions</a></th>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    {# ── Audit ────────────────────────────────────────────────────── #}
+    <table>
+      <thead>
+        <tr><th colspan="2" class="nav-group-header">Audit</th></tr>
+      </thead>
+      <tbody>
+        <tr class="model-logentry{% if '/admin/admin/logentry/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/admin/logentry/">Log Entries</a></th>
+          <td></td>
+        </tr>
+        <tr class="model-contenttype{% if '/admin/contenttypes/contenttype/' in request.path %} current-model{% endif %}">
+          <th scope="row"><a href="/admin/contenttypes/contenttype/">Content Types</a></th>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+
+  <style>
+    .nav-group-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--secondary, #999);
+      padding: 12px 8px 4px;
+      border-bottom: 1px solid var(--hairline-color, #e8e8e8);
+    }
+    #nav-sidebar table {
+      margin-bottom: 4px;
+    }
+  </style>
 </nav>

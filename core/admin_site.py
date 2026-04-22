@@ -7,6 +7,7 @@ class BarcodeAdminSite(AdminSite):
     site_header = "Barcode Admin"
     site_title = "Barcode Admin"
     index_title = "Dashboard"
+    enable_nav_sidebar = True
 
     def index(self, request, extra_context=None):
         from users.models import User, UserActivity
