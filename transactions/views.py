@@ -4,6 +4,7 @@ from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import viewsets, status
+from django.core.cache import cache
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Transaction, TransactionItem
@@ -61,6 +62,11 @@ class TransactionViewSet(viewsets.ModelViewSet):
         GET /api/v1/transactions/stats
         Returns aggregate overview — not paginated.
         """
+        cache_key = "transaction_stats_overview"
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start + timedelta(days=1)
 
@@ -87,11 +93,15 @@ class TransactionViewSet(viewsets.ModelViewSet):
             for row in by_type
         }
 
-        return Response({
+        response_data = {
             "total_transactions": sum(row['total_count'] for row in by_type),
             "today_transactions": sum(row['today_count'] for row in by_type),
             "by_type": by_type_result,
-        })
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, response_data, 300)
+        return Response(response_data)
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):

@@ -130,6 +130,21 @@ DATABASES = {
 }
 
 
+# Cache
+# https://docs.djangoproject.com/en/6.0/ref/settings/#caches
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
@@ -243,6 +258,7 @@ AXES_FAILURE_LIMIT = 30  # lock after 30 failed attempts
 AXES_COOLOFF_TIME = 1  # unlock after 1 hour
 AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]
 AXES_RESET_ON_SUCCESS = True  # clear failure count on successful login
+AXES_CACHE_BACKEND = "default"  # Use Redis for brute-force tracking
 
 # django-user-agents cache
 USER_AGENTS_CACHE = "default"

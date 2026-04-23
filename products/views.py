@@ -6,6 +6,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.cache import cache
 from .models import Product
 from .serializers import ProductSerializer
 from users.permissions import RBACPermission
@@ -56,9 +57,20 @@ class ProductViewSet(viewsets.ModelViewSet):
         return queryset
 
     def list(self, request):
+        params = request.query_params.urlencode()
+        cache_key = f"product_list_{params}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data)
+
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
-        return Response({'count': len(serializer.data), 'results': serializer.data})
+        response_data = {'count': len(serializer.data), 'results': serializer.data}
+        
+        # Cache for 2 minutes
+        cache.set(cache_key, response_data, 120)
+        return Response(response_data)
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
@@ -66,6 +78,11 @@ class ProductViewSet(viewsets.ModelViewSet):
         GET /api/v1/products/stats/
         Returns aggregate overview — not paginated.
         """
+        cache_key = "product_stats_overview"
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+
         by_category_qs = list(
             Product.objects.values('category')
             .annotate(count=Count('id'), total_value=Sum('cost_per_unit'))
@@ -75,7 +92,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         total_products = sum(row['count'] for row in by_category_qs)
         total_value = sum(row['total_value'] or 0 for row in by_category_qs)
 
-        return Response({
+        response_data = {
             "total_products": total_products,
             "total_value": total_value,
             "by_category": {
@@ -85,7 +102,11 @@ class ProductViewSet(viewsets.ModelViewSet):
                 }
                 for row in by_category_qs
             },
-        })
+        }
+        
+        # Cache for 5 minutes
+        cache.set(cache_key, response_data, 300)
+        return Response(response_data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.db.models import Count, DecimalField, IntegerField, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from django.core.cache import cache
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -110,7 +111,14 @@ class DashboardStatsView(APIView):
                 status=400,
             )
 
-        return Response({
+        # Cache implementation
+        cache_key = f"dashboard_stats_{resolved_label}_{start_param}_{end_param}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data)
+
+        response_data = {
             "range": {
                 "label": resolved_label,
                 "start": range_start.isoformat() if range_start else None,
@@ -119,7 +127,12 @@ class DashboardStatsView(APIView):
             "products": self._product_stats(range_start, range_end),
             "inventory": self._inventory_stats(range_start, range_end),
             "transactions": self._transaction_stats(range_start, range_end),
-        })
+        }
+
+        # Cache for 5 minutes
+        cache.set(cache_key, response_data, 300)
+
+        return Response(response_data)
 
     # ── Products (scoped by created_at) ──────────────────────────────────────
 
