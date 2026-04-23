@@ -74,9 +74,14 @@ class UserAdminSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context.get('request')
-        if request and not request.user.is_superuser:
-            attrs.pop('is_superuser', None)
-            attrs.pop('is_staff', None)
+        if request:
+            # Only superusers can set is_superuser
+            if not request.user.is_superuser:
+                attrs.pop('is_superuser', None)
+            
+            # Boss and Superuser can set is_staff, but regular staff cannot
+            if not (request.user.is_superuser or getattr(request.user, 'is_boss', False)):
+                attrs.pop('is_staff', None)
         return attrs
 
     def update(self, instance, validated_data):

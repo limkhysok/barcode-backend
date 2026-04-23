@@ -1140,11 +1140,18 @@ GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
 
 ## 11. Boss Dashboard — Staff Users
 
-View all staff users in the system. **Requires `is_boss: true`, `is_staff: true`, or `is_superuser: true`.**
+View and manage staff users in the system. **Requires `is_boss: true`, `is_staff: true`, or `is_superuser: true`.**
 
-> This endpoint is for boss-role users and admins to view the staff list. Regular users will receive `403 Forbidden`.
+> This endpoint allows boss-role users and admins to view, create, edit, and delete staff members. Superusers are protected and cannot be modified via these endpoints.
 
-- **Endpoint:** `GET /api/v1/users/boss/staff-users/`
+- **Base Endpoint:** `GET /api/v1/users/boss/staff-users/`
+- **Methods:**
+  - `GET /api/v1/users/boss/staff-users/` — List staff users
+  - `POST /api/v1/users/boss/staff-users/` — Create new staff/boss
+  - `GET /api/v1/users/boss/staff-users/<id>/` — Retrieve a user
+  - `PUT /api/v1/users/boss/staff-users/<id>/` — Replace a user
+  - `PATCH /api/v1/users/boss/staff-users/<id>/` — Update a user
+  - `DELETE /api/v1/users/boss/staff-users/<id>/` — Delete a user
 - **Auth required:** Yes — `is_boss: true`, `is_staff: true`, or `is_superuser: true` in JWT
 
 ### Response (200 OK)
@@ -1195,7 +1202,7 @@ Returns all users where `is_staff=true` and `is_superuser=false`, ordered by use
 
 Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superuser`.**
 
-> **Field restriction:** `is_superuser` and `is_staff` fields are only writable by a superadmin. If a boss or staff user sends these fields, they are silently ignored.
+> **Field restriction:** `is_superuser` is only writable by a superadmin. `is_staff` is writable by superadmins and bosses. If a user without sufficient permissions sends these fields, they are silently ignored.
 
 - **Base Endpoint:** `/api/v1/users/admin/`
 - **Methods:**

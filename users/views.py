@@ -9,6 +9,7 @@ from ipware import get_client_ip
 from .serializers import UserSerializer, UserAdminSerializer, UserActivitySerializer, CustomTokenObtainPairSerializer
 from .models import UserActivity
 from .permissions import IsAdminOrBoss
+from .utils import log_activity
 
 User = get_user_model()
 
@@ -146,10 +147,43 @@ class AdminAllLogsView(generics.ListAPIView):
     queryset = UserActivity.objects.select_related('user').order_by('-timestamp')
 
 
-class BossStaffListView(generics.ListAPIView):
-    """Boss: list all staff users (is_staff=True, excluding superusers)."""
-    serializer_class = UserSerializer
+class BossStaffListView(generics.ListCreateAPIView):
+    """Boss: list all staff users or create a new one."""
+    serializer_class = UserAdminSerializer
     permission_classes = (IsAdminOrBoss,)
 
     def get_queryset(self):
         return User.objects.filter(is_staff=True, is_superuser=False).order_by('username')
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        log_activity(self.request, 'register', {
+            'created_user_id': user.id,
+            'created_username': user.username,
+            'via': 'boss_dashboard'
+        })
+
+
+class BossStaffDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Boss: view, edit, or delete a specific staff user."""
+    queryset = User.objects.filter(is_superuser=False)
+    serializer_class = UserAdminSerializer
+    permission_classes = (IsAdminOrBoss,)
+
+    def perform_update(self, serializer):
+        user = serializer.save()
+        log_activity(self.request, 'profile_update', {
+            'updated_user_id': user.id,
+            'updated_username': user.username,
+            'via': 'boss_dashboard'
+        })
+
+    def perform_destroy(self, instance):
+        UserActivity.objects.create(
+            user=instance,
+            action='other',
+            ip_address=_get_ip(self.request),
+            user_agent=_get_ua(self.request),
+            details={'deleted_by': self.request.user.username, 'via': 'boss_dashboard'},
+        )
+        instance.delete()
