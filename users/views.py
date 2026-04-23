@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from ipware import get_client_ip
 from .serializers import UserSerializer, UserAdminSerializer, UserActivitySerializer, CustomTokenObtainPairSerializer
 from .models import UserActivity
-from .permissions import IsAdminOrBoss, IsBoss
+from .permissions import IsAdminOrBoss
 
 User = get_user_model()
 
@@ -149,7 +149,7 @@ class AdminAllLogsView(generics.ListAPIView):
 class BossStaffListView(generics.ListAPIView):
     """Boss: list all staff users (is_staff=True, excluding superusers)."""
     serializer_class = UserSerializer
-    permission_classes = (IsBoss,)
+    permission_classes = (IsAdminOrBoss,)
 
     def get_queryset(self):
         return User.objects.filter(is_staff=True, is_superuser=False).order_by('username')

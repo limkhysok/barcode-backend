@@ -1140,12 +1140,12 @@ GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
 
 ## 11. Boss Dashboard — Staff Users
 
-View all staff users in the system. **Requires `is_boss: true`.**
+View all staff users in the system. **Requires `is_boss: true`, `is_staff: true`, or `is_superuser: true`.**
 
-> This endpoint is exclusively for boss-role users. Staff and regular users will receive `403 Forbidden`. Superadmins should use the full admin panel instead.
+> This endpoint is for boss-role users and admins to view the staff list. Regular users will receive `403 Forbidden`.
 
 - **Endpoint:** `GET /api/v1/users/boss/staff-users/`
-- **Auth required:** Yes — `is_boss: true` in JWT
+- **Auth required:** Yes — `is_boss: true`, `is_staff: true`, or `is_superuser: true` in JWT
 
 ### Response (200 OK)
 Returns all users where `is_staff=true` and `is_superuser=false`, ordered by username.
@@ -1187,7 +1187,7 @@ Returns all users where `is_staff=true` and `is_superuser=false`, ordered by use
 | Status | Scenario | Response |
 |--------|----------|----------|
 | `401 Unauthorized` | No or invalid token | `{ "detail": "Authentication credentials were not provided." }` |
-| `403 Forbidden` | Authenticated but not a boss | `{ "detail": "You do not have permission to perform this action." }` |
+| `403 Forbidden` | Authenticated but not a boss or admin | `{ "detail": "You do not have permission to perform this action." }` |
 
 ---
 
