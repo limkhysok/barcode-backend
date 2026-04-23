@@ -88,3 +88,94 @@ The following are **unchanged** — no frontend work needed:
 - [ ] Dashboard "Needs Reorder" card reads from `stats.needs_reorder` (now correct)
 - [ ] Inventory create error handler updated: `400` → `409` for duplicate conflict
 - [ ] Colour/badge map covers all three `reorder_status` values
+
+---
+
+# Frontend Integration Update — Boss Dashboard: Staff Users
+
+A new endpoint has been added that allows boss-role users to view all staff users in the system. Read this before building any boss-specific dashboard UI.
+
+---
+
+## New Endpoint
+
+```
+GET /api/v1/users/boss/staff-users/
+Authorization: Bearer <access_token>
+```
+
+- Returns a flat array (no pagination) of staff users sorted by username.
+- Only callable by users where `is_boss: true` (decoded from the JWT).
+- Returns `403` for any other role — guard the route before calling this.
+
+---
+
+## Response Shape
+
+```json
+[
+  {
+    "id": 3,
+    "username": "jane_staff",
+    "email": "jane@example.com",
+    "name": "Jane Smith",
+    "is_boss": false,
+    "is_staff": true,
+    "is_superuser": false
+  }
+]
+```
+
+Superadmins (`is_superuser: true`) and other bosses (`is_boss: true`) are **excluded** — this list contains only pure staff accounts.
+
+---
+
+## How to Gate This in the Frontend
+
+Read the role flags from the decoded JWT access token (already available from login):
+
+```ts
+import { jwtDecode } from 'jwt-decode';
+
+const token = jwtDecode(accessToken);
+const isBoss = token.is_boss === true;
+```
+
+Only render the Boss Dashboard route / nav item when `isBoss` is `true`. Do not rely on the API returning `403` to hide UI — check the token first.
+
+```ts
+// Before calling the endpoint
+if (!isBoss) return; // skip entirely
+
+const res = await fetch('/api/v1/users/boss/staff-users/', {
+  headers: { Authorization: `Bearer ${accessToken}` },
+});
+const staffUsers = await res.json(); // array of user objects
+```
+
+---
+
+## What to Build
+
+Add a **Staff Users** section to the Boss Dashboard page:
+
+| UI Element | Detail |
+|------------|--------|
+| Page / route | `/dashboard/boss/staff` or a tab inside the boss dashboard |
+| Nav item | Visible only when `is_boss: true` |
+| Table columns | Name, Username, Email, Status (active/inactive if needed) |
+| Empty state | "No staff users found." |
+| Error state | Show a message on `403` — should not happen if the gate is correct |
+
+The list is **read-only** — this endpoint does not support creating or editing users. If the boss needs to create/edit staff, that goes through `POST /api/v1/users/admin/users/` (which bosses also have access to).
+
+---
+
+## Quick Checklist
+
+- [ ] Decode JWT on login and store `is_boss` in auth state alongside `is_staff` and `is_superuser`
+- [ ] Boss Dashboard nav item / route is conditionally rendered based on `is_boss`
+- [ ] `GET /api/v1/users/boss/staff-users/` is called only when `is_boss === true`
+- [ ] Staff list table renders `id`, `username`, `email`, `name`
+- [ ] Empty state handled (empty array `[]`)
+- [ ] `403` error handled gracefully (should not be reachable if gating is correct)

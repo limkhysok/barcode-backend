@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from ipware import get_client_ip
 from .serializers import UserSerializer, UserAdminSerializer, UserActivitySerializer, CustomTokenObtainPairSerializer
 from .models import UserActivity
-from .permissions import IsAdminOrBoss
+from .permissions import IsAdminOrBoss, IsBoss
 
 User = get_user_model()
 
@@ -144,3 +144,12 @@ class AdminAllLogsView(generics.ListAPIView):
     serializer_class = UserActivitySerializer
     permission_classes = (IsAdminOrBoss,)
     queryset = UserActivity.objects.select_related('user').order_by('-timestamp')
+
+
+class BossStaffListView(generics.ListAPIView):
+    """Boss: list all staff users (is_staff=True, excluding superusers)."""
+    serializer_class = UserSerializer
+    permission_classes = (IsBoss,)
+
+    def get_queryset(self):
+        return User.objects.filter(is_staff=True, is_superuser=False).order_by('username')

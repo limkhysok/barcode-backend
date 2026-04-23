@@ -1,6 +1,16 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
+class IsBoss(BasePermission):
+    """Allow access only to users with is_boss=True."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            getattr(request.user, 'is_boss', False)
+        )
+
+
 class IsAdminOrBoss(BasePermission):
     """
     Permission check for Admin (staff/superuser) or Boss role.

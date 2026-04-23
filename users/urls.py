@@ -4,6 +4,7 @@ from .views import (
     RegisterView, UserDetailView, api_root,
     AdminUserListView, AdminUserDetailView,
     AdminUserLogsView, AdminAllLogsView,
+    BossStaffListView,
     CustomTokenObtainPairView,
 )
 
@@ -20,4 +21,7 @@ urlpatterns = [
     path('admin/users/<int:pk>/', AdminUserDetailView.as_view(), name='admin_user_detail'),
     path('admin/users/<int:pk>/logs/', AdminUserLogsView.as_view(), name='admin_user_logs'),
     path('admin/logs/', AdminAllLogsView.as_view(), name='admin_all_logs'),
+
+    # Boss dashboard
+    path('boss/staff-users/', BossStaffListView.as_view(), name='boss_staff_list'),
 ]

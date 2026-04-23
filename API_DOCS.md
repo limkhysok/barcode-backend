@@ -1138,7 +1138,60 @@ GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
 
 ---
 
-## 11. Admin User Management
+## 11. Boss Dashboard — Staff Users
+
+View all staff users in the system. **Requires `is_boss: true`.**
+
+> This endpoint is exclusively for boss-role users. Staff and regular users will receive `403 Forbidden`. Superadmins should use the full admin panel instead.
+
+- **Endpoint:** `GET /api/v1/users/boss/staff-users/`
+- **Auth required:** Yes — `is_boss: true` in JWT
+
+### Response (200 OK)
+Returns all users where `is_staff=true` and `is_superuser=false`, ordered by username.
+
+```json
+[
+  {
+    "id": 3,
+    "username": "jane_staff",
+    "email": "jane@example.com",
+    "name": "Jane Smith",
+    "is_boss": false,
+    "is_staff": true,
+    "is_superuser": false
+  },
+  {
+    "id": 4,
+    "username": "mark_staff",
+    "email": "mark@example.com",
+    "name": "Mark Lee",
+    "is_boss": false,
+    "is_staff": true,
+    "is_superuser": false
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | User primary key |
+| `username` | Login name |
+| `email` | Email address |
+| `name` | Display name |
+| `is_boss` | Always `false` in this list (bosses are excluded) |
+| `is_staff` | Always `true` in this list |
+| `is_superuser` | Always `false` in this list (superadmins are excluded) |
+
+### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `401 Unauthorized` | No or invalid token | `{ "detail": "Authentication credentials were not provided." }` |
+| `403 Forbidden` | Authenticated but not a boss | `{ "detail": "You do not have permission to perform this action." }` |
+
+---
+
+## 12. Admin User Management
 
 Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superuser`.**
 
