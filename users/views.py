@@ -27,11 +27,17 @@ def _get_ua(request):
 @permission_classes([])
 def api_root(request, format=None):
     return Response({
-        'register': reverse('auth_register', request=request, format=format),
-        'login': reverse('token_obtain_pair', request=request, format=format),
-        'token_refresh': reverse('token_refresh', request=request, format=format),
+        'auth': {
+            'register': reverse('auth_register', request=request, format=format),
+            'login': reverse('token_obtain_pair', request=request, format=format),
+            'token_refresh': reverse('token_refresh', request=request, format=format),
+        },
         'me': reverse('user_detail', request=request, format=format),
-        'admin_users': reverse('admin_user_list', request=request, format=format),
+        'admin': {
+            'users': reverse('admin_user_list', request=request, format=format),
+            'logs': reverse('admin_all_logs', request=request, format=format),
+            'staff': reverse('boss_staff_list', request=request, format=format),
+        },
     })
 
 

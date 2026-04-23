@@ -1,8 +1,30 @@
-# Barcode Backend - API Documentation
+# Barcode Backend — API Documentation
 
 This backend uses **Django Rest Framework** and **SimpleJWT** for secure authentication.
 
-> All endpoints except login/register require `Authorization: Bearer <access_token>` header.
+> All endpoints except auth (login/register) require `Authorization: Bearer <access_token>` header.
+
+---
+
+## Base URL
+
+```
+http://localhost:8000/api/v1/
+```
+
+---
+
+## URL Structure
+
+| Prefix | Purpose |
+|--------|---------|
+| `/api/v1/auth/` | Authentication — login, register, token refresh |
+| `/api/v1/users/` | Current user profile (`me/`) |
+| `/api/v1/admin/` | User management and activity logs (admin/boss only) |
+| `/api/v1/products/` | Product CRUD |
+| `/api/v1/inventory/` | Inventory CRUD and scan lookup |
+| `/api/v1/transactions/` | Transaction logging and export |
+| `/api/v1/dashboard/` | Aggregate stats |
 
 ---
 
@@ -23,10 +45,10 @@ All protected endpoints enforce the following permission rules based on the user
 > - **Boss** — user with `is_boss: true` (can edit, cannot delete)
 > - **Superadmin** — user with `is_superuser: true` (full access)
 
-> **Exception:** `PATCH /api/v1/users/me` is available to all authenticated users regardless of role (users can always update their own profile).
+> **Exception:** `PATCH /api/v1/users/me/` is available to all authenticated users regardless of role.
 
 ### JWT Claims
-The login response token now includes role fields. Decode the `access` token to read:
+The login response token includes role fields. Decode the `access` token to read:
 ```json
 {
   "user_id": 2,
@@ -36,16 +58,18 @@ The login response token now includes role fields. Decode the `access` token to 
   "is_superuser": false
 }
 ```
-Use these claims on the frontend to show/hide UI elements (edit buttons, delete buttons) without an extra API call.
+Use these claims on the frontend to show/hide UI elements without an extra API call.
 
 ---
 
-## 1. User Registration
-Create a new user account.
+## 1. Authentication
 
-- **Endpoint:** `POST /api/v1/users/register`
+### Register
+Create a new user account. No authentication required.
 
-### Payload
+- **Endpoint:** `POST /api/v1/auth/register/`
+
+#### Payload
 ```json
 {
   "username": "your_username",
@@ -55,7 +79,7 @@ Create a new user account.
 }
 ```
 
-### Response (201 Created)
+#### Response (201 Created)
 ```json
 {
   "id": 2,
@@ -70,11 +94,12 @@ Create a new user account.
 
 ---
 
-## 2. User Login (Obtain Token)
+### Login (Obtain Token)
+No authentication required.
 
-- **Endpoint:** `POST /api/v1/users/login`
+- **Endpoint:** `POST /api/v1/auth/login/`
 
-### Payload
+#### Payload
 ```json
 {
   "username": "your_username",
@@ -82,7 +107,7 @@ Create a new user account.
 }
 ```
 
-### Response (200 OK)
+#### Response (200 OK)
 ```json
 {
   "refresh": "eyJhbGciOiJIUzI1NiIsInR5...",
@@ -92,12 +117,31 @@ Create a new user account.
 
 ---
 
-## 3. Get / Update Current User
-Retrieve or update the currently logged-in user.
+### Token Refresh
 
-- **Endpoint:** `GET / PATCH / PUT /api/v1/users/me`
+- **Endpoint:** `POST /api/v1/auth/token/refresh/`
 
-### Response (200 OK)
+#### Payload
+```json
+{ "refresh": "your_refresh_token" }
+```
+
+#### Response (200 OK)
+```json
+{ "access": "newly_generated_access_token" }
+```
+
+---
+
+## 2. Current User
+
+### Get / Update Profile
+Retrieve or update the currently logged-in user's own profile.
+
+- **Endpoint:** `GET / PATCH / PUT /api/v1/users/me/`
+- **Auth required:** Yes
+
+#### Response (200 OK)
 ```json
 {
   "id": 2,
@@ -112,82 +156,49 @@ Retrieve or update the currently logged-in user.
 
 ---
 
-## 4. Token Refresh
+## 3. Products
 
-- **Endpoint:** `POST /api/v1/users/token/refresh`
-
-### Payload
-```json
-{ "refresh": "your_refresh_token" }
-```
-
-### Response (200 OK)
-```json
-{ "access": "newly_generated_access_token" }
-```
-
----
-
-## 5. Product Management
-
-CRUD operations on products. **All endpoints require authentication with a JWT access token.**
+CRUD operations on products. **All endpoints require authentication.**
 
 - **Base Endpoint:** `/api/v1/products/`
-- **Methods:**
-  - `GET /api/v1/products/` — List all products (unpaginated) → `200 OK`
-  - `GET /api/v1/products/stats/` — Overview stats (not paginated) → `200 OK`
-  - `GET /api/v1/products/{id}/` — Retrieve a product → `200 OK`
-  - `POST /api/v1/products/` — Create a new product → `201 Created`
-  - `PUT /api/v1/products/{id}/` — Full replace of a product → `200 OK`
-  - `PATCH /api/v1/products/{id}/` — Partial update of a product → `200 OK`
-  - `DELETE /api/v1/products/{id}/` — Delete a product → `204 No Content`
 
-> **Note:** The `{id}` in the URL is the product's `id` field (the primary key in the database and in API responses).
-
-### Authentication Required
-All product endpoints require the following header:
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `GET` | `/api/v1/products/` | List all products | `200 OK` |
+| `POST` | `/api/v1/products/` | Create a product | `201 Created` |
+| `GET` | `/api/v1/products/{id}/` | Retrieve a product | `200 OK` |
+| `PUT` | `/api/v1/products/{id}/` | Full replace | `200 OK` |
+| `PATCH` | `/api/v1/products/{id}/` | Partial update | `200 OK` |
+| `DELETE` | `/api/v1/products/{id}/` | Delete a product | `204 No Content` |
+| `GET` | `/api/v1/products/stats/` | Aggregate overview | `200 OK` |
 
 ```
 Authorization: Bearer <access_token>
 ```
 
-You must first obtain an access token via the login endpoint (`POST /api/v1/users/login`).
-
-#### Example using curl:
-```
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/products/
-```
-
 ---
 
-### List Products (GET)
-`GET /api/v1/products/` — returns all products.
+### List Products
+`GET /api/v1/products/`
 
 #### Query Parameters
 
-**Search**
-| Param | Searches across |
-|-------|----------------|
-| `search=<term>` | `barcode`, `product_name`, `supplier` (case-insensitive, partial match) |
-
-**Filter**
-| Param | Options |
-|-------|---------|
-| `category=<name>` | `Fasteners`, `Accessories` |
-
-**Ordering**
 | Param | Description |
 |-------|-------------|
-| `ordering=product_name` | Product name — A to Z |
-| `ordering=-product_name` | Product name — Z to A |
-| `ordering=supplier` | Supplier — A to Z |
-| `ordering=-supplier` | Supplier — Z to A |
-| `ordering=cost_per_unit` | Cost per unit — Low to High |
-| `ordering=-cost_per_unit` | Cost per unit — High to Low |
-| `ordering=reorder_level` | Reorder level — Low to High |
-| `ordering=-reorder_level` | Reorder level — High to Low |
-| `ordering=created_at` | Oldest first |
-| `ordering=-created_at` | Newest first |
+| `search=<term>` | Search across `barcode`, `product_name`, `supplier` (case-insensitive) |
+| `category=<name>` | Filter by category (e.g. `Fasteners`, `Accessories`) |
+| `supplier=<name>` | Filter by supplier (case-insensitive) |
+| `ordering=<field>` | Sort results — see table below |
+
+**Ordering options**
+
+| Value | Description |
+|-------|-------------|
+| `product_name` / `-product_name` | Name A→Z / Z→A |
+| `supplier` / `-supplier` | Supplier A→Z / Z→A |
+| `cost_per_unit` / `-cost_per_unit` | Cost low→high / high→low |
+| `reorder_level` / `-reorder_level` | Reorder level low→high / high→low |
+| `created_at` / `-created_at` | Oldest first / Newest first |
 
 **Examples**
 ```
@@ -195,7 +206,6 @@ GET /api/v1/products/
 GET /api/v1/products/?search=bolt
 GET /api/v1/products/?search=CTK&category=Fasteners
 GET /api/v1/products/?category=Fasteners&ordering=cost_per_unit
-GET /api/v1/products/?category=Accessories&ordering=-reorder_level
 ```
 
 #### Response (200 OK)
@@ -222,8 +232,8 @@ GET /api/v1/products/?category=Accessories&ordering=-reorder_level
 
 ---
 
-### Product Stats (GET)
-`GET /api/v1/products/stats/` — returns aggregate overview for the dashboard. Not paginated.
+### Product Stats
+`GET /api/v1/products/stats/`
 
 #### Response (200 OK)
 ```json
@@ -231,36 +241,22 @@ GET /api/v1/products/?category=Accessories&ordering=-reorder_level
   "total_products": 85,
   "total_value": "13250.00",
   "by_category": {
-    "Fasteners": {
-      "count": 60,
-      "total_value": "9800.00"
-    },
-    "Accessories": {
-      "count": 25,
-      "total_value": "3450.00"
-    }
+    "Fasteners": { "count": 60, "total_value": "9800.00" },
+    "Accessories": { "count": 25, "total_value": "3450.00" }
   }
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `total_products` | Total number of products in the system |
-| `total_value` | Sum of `cost_per_unit` across all products |
-| `by_category.*.count` | Number of products in that category |
-| `by_category.*.total_value` | Sum of `cost_per_unit` for products in that category |
-
 ---
 
-### Create Product (POST)
+### Create Product
 `POST /api/v1/products/`
 
-`barcode` is the **physical barcode scanned from the product** — it is required and must be unique. It cannot be changed after creation.
+`barcode` is required and must be unique. It cannot be changed after creation.
 
-> **`product_picture` is optional.** Use `multipart/form-data` when uploading an image. Use `application/json` when no image is included.
+> Use `multipart/form-data` when uploading an image. Use `application/json` otherwise.
 
 ```
-POST /api/v1/products/
 Content-Type: multipart/form-data
 
 barcode=4006381333931
@@ -269,91 +265,35 @@ category=Fasteners
 cost_per_unit=0.50
 reorder_level=100
 supplier=CTK Industrial
-product_picture=<file>        ← optional
+product_picture=<file>   ← optional
 ```
 
 Category choices: `Fasteners`, `Accessories`
 
-#### Success (201 Created)
-```json
-{
-  "id": 1,
-  "barcode": "4006381333931",
-  "product_name": "Zinc Bolt M8",
-  "category": "Fasteners",
-  "cost_per_unit": "0.50",
-  "reorder_level": 100,
-  "supplier": "CTK Industrial",
-  "product_picture": "/media/products/images/zinc_bolt_m8.jpg",
-  "created_at": "2026-03-25T08:00:00Z",
-  "updated_at": "2026-03-25T08:00:00Z",
-  "created_by": 2
-}
-```
-
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `400 Bad Request` | `barcode` missing | `{ "barcode": ["This field is required."] }` |
-| `400 Bad Request` | `product_name` missing | `{ "product_name": ["This field may not be blank."] }` |
-| `400 Bad Request` | `supplier` missing | `{ "supplier": ["This field may not be blank."] }` |
-| `400 Bad Request` | Invalid `category` | `{ "category": ["\"X\" is not a valid choice."] }` |
-| `409 Conflict` | Duplicate `barcode` | `{ "detail": "A product with this barcode already exists." }` |
+| `400 Bad Request` | Missing required field | `{ "field": ["This field is required."] }` |
+| `400 Bad Request` | Invalid category | `{ "category": ["\"X\" is not a valid choice."] }` |
+| `409 Conflict` | Duplicate barcode | `{ "detail": "A product with this barcode already exists." }` |
 
 ---
 
-### Retrieve Product (GET)
-`GET /api/v1/products/{id}/`
+### Update Product
+`PUT /api/v1/products/{id}/` — full replace (all fields except `barcode`)
+`PATCH /api/v1/products/{id}/` — partial update
 
-#### Success (200 OK) — returns the product object above
+> `barcode` is **read-only after creation** — ignored if included in the request body.
 
-#### Errors
-| Status | Response |
-|--------|----------|
-| `404 Not Found` | `{ "detail": "No Product matches the given query." }` |
-
----
-
-### Update Product (PUT / PATCH)
-`PUT /api/v1/products/{id}/` — full replace (all fields required except `barcode`)
-`PATCH /api/v1/products/{id}/` — partial update (only send fields to change)
-
-> `barcode` is **read-only after creation** — it is silently ignored if included in the request body.
-
-> Use `multipart/form-data` when uploading or replacing `product_picture`. Use `application/json` for text-only updates.
-
-#### PUT Payload
-```
-PUT /api/v1/products/{id}/
-Content-Type: multipart/form-data
-
-product_name=Zinc Bolt M8 Updated
-category=Fasteners
-cost_per_unit=0.75
-reorder_level=150
-supplier=New Supplier Ltd
-product_picture=<file>        ← optional, replaces existing image
-```
-
-To **remove** the picture, send `product_picture` as an empty string:
+To **remove** `product_picture`:
 ```json
 { "product_picture": "" }
 ```
 
-#### Success (200 OK) — returns the updated product object
-
-#### Errors
-| Status | Scenario | Response |
-|--------|----------|----------|
-| `400 Bad Request` | Invalid field value | `{ "field": ["error message"] }` |
-| `404 Not Found` | Product not found | `{ "detail": "No Product matches the given query." }` |
-
 ---
 
-### Delete Product (DELETE)
+### Delete Product
 `DELETE /api/v1/products/{id}/`
-
-#### Success (204 No Content) — empty body
 
 #### Errors
 | Status | Scenario | Response |
@@ -363,126 +303,45 @@ To **remove** the picture, send `product_picture` as an empty string:
 
 ---
 
-## 6. Inventory Management
+## 4. Inventory
 
-Track stock levels across sites and locations. **All endpoints require authentication with a JWT access token.**
+Track stock levels across sites and locations. **All endpoints require authentication.**
 
 - **Base Endpoint:** `/api/v1/inventory/`
-- **Methods:**
-  - `GET /api/v1/inventory/` — List all inventory records (unpaginated) → `200 OK`
-  - `GET /api/v1/inventory/stats/` — Overview stats (not paginated) → `200 OK`
-  - `GET /api/v1/inventory/{id}/` — Retrieve a single record → `200 OK`
-  - `POST /api/v1/inventory/` — Create a new inventory record → `201 Created`
-  - `PUT /api/v1/inventory/{id}/` — Full replace of a record → `200 OK`
-  - `PATCH /api/v1/inventory/{id}/` — Partial update of a record → `200 OK`
-  - `DELETE /api/v1/inventory/{id}/` — Delete a record → `204 No Content`
 
-> **Note:** `stock_value` and `reorder_status` are **read-only** — they are auto-calculated whenever `quantity_on_hand` changes (via direct inventory write or a transaction). Do not send them in POST/PUT/PATCH requests.
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `GET` | `/api/v1/inventory/` | List all records | `200 OK` |
+| `POST` | `/api/v1/inventory/` | Create a record | `201 Created` |
+| `GET` | `/api/v1/inventory/{id}/` | Retrieve a record | `200 OK` |
+| `PUT` | `/api/v1/inventory/{id}/` | Full replace | `200 OK` |
+| `PATCH` | `/api/v1/inventory/{id}/` | Partial update | `200 OK` |
+| `DELETE` | `/api/v1/inventory/{id}/` | Delete a record | `204 No Content` |
+| `GET` | `/api/v1/inventory/stats/` | Aggregate overview | `200 OK` |
+| `GET` | `/api/v1/inventory/scan/` | Barcode lookup | `200 OK` |
+
+> `stock_value` and `reorder_status` are **read-only** — auto-calculated whenever `quantity_on_hand` changes.
 
 > **`reorder_status` values:**
 > | Value | Meaning |
 > |-------|---------|
-> | `"No"` | Stock is above reorder level — no action needed |
-> | `"LOW"` | Stock is at or below the product's `reorder_level` |
+> | `"No"` | Stock above reorder level |
+> | `"LOW"` | At or below product's `reorder_level` |
 > | `"NO STOCK"` | `quantity_on_hand` is 0 |
 
-> **Uniqueness:** Each combination of `product` + `site` + `location` must be unique. Attempting to create a duplicate returns `409 Conflict`.
-
-### Authentication Required
-```
-Authorization: Bearer <access_token>
-```
-
-#### Example using curl:
-```
-curl -H "Authorization: Bearer <access_token>" http://localhost:8000/api/v1/inventory/
-```
+> **Uniqueness:** Each `product` + `site` + `location` combination must be unique.
 
 ---
 
-### Inventory Stats (GET)
-`GET /api/v1/inventory/stats/` — returns aggregate overview + time-based activity for charts. Not paginated.
-
-#### Response (200 OK)
-```json
-{
-  "total_records": 42,
-  "total_quantity_on_hand": 12500,
-  "total_stock_value": "13250.00",
-  "needs_reorder": 5,
-  "by_site": {
-    "Warehouse A": {
-      "records": 25,
-      "total_quantity_on_hand": 8000,
-      "total_stock_value": "8500.00"
-    },
-    "Warehouse B": {
-      "records": 17,
-      "total_quantity_on_hand": 4500,
-      "total_stock_value": "4750.00"
-    }
-  },
-  "activity": {
-    "last_7_days": {
-      "data": [
-        { "date": "2026-03-25", "new_records": 3 },
-        { "date": "2026-03-27", "new_records": 1 }
-      ]
-    },
-    "last_14_days": {
-      "data": [
-        { "date": "2026-03-18", "new_records": 5 },
-        { "date": "2026-03-25", "new_records": 3 }
-      ]
-    },
-    "last_30_days": {
-      "data": [
-        { "date": "2026-03-01", "new_records": 8 },
-        { "date": "2026-03-15", "new_records": 4 }
-      ]
-    },
-    "last_3_months": {
-      "data": [
-        { "week_start": "2026-01-05", "new_records": 12 },
-        { "week_start": "2026-01-12", "new_records": 7 }
-      ]
-    }
-  }
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `total_records` | Total number of inventory records |
-| `total_quantity_on_hand` | Sum of all stock quantities across all sites |
-| `total_stock_value` | Sum of all `stock_value` across all records |
-| `needs_reorder` | Count of records where `reorder_status` is `"LOW"` or `"NO STOCK"` |
-| `by_site.*.records` | Number of inventory records at that site |
-| `by_site.*.total_quantity_on_hand` | Total stock quantity at that site |
-| `by_site.*.total_stock_value` | Total stock value at that site |
-| `activity.last_7_days.data` | Daily new inventory records — last 7 days |
-| `activity.last_14_days.data` | Daily new inventory records — last 14 days |
-| `activity.last_30_days.data` | Daily new inventory records — last 30 days |
-| `activity.last_3_months.data` | Weekly new inventory records — last 90 days (`week_start` = Monday) |
-
-> **Chart note:** Only dates/weeks with activity are included — days with zero new records are omitted. Fill missing dates with `0` on the frontend before rendering.
-
----
-
-### List Inventory (GET)
-`GET /api/v1/inventory/` — returns all inventory records, most recently updated first.
+### List Inventory
+`GET /api/v1/inventory/`
 
 #### Query Parameters
 | Param | Description |
 |-------|-------------|
 | `product_id=<id>` | Filter by product ID |
-
-> **Client-Side Management:** This endpoint returns all records (`count` and `results`). All searching, filtering (by site/reorder status), and sorting should now be handled directly on the frontend/client-side for optimal performance.
-
-**Example**
-```
-GET /api/v1/inventory/
-```
+| `site=<name>` | Filter by site (case-insensitive) |
+| `search=<term>` | Search by product name |
 
 #### Response (200 OK)
 ```json
@@ -513,17 +372,40 @@ GET /api/v1/inventory/
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `count` | Total number of records returned |
-| `results` | Array of inventory records |
+---
+
+### Inventory Stats
+`GET /api/v1/inventory/stats/`
+
+#### Response (200 OK)
+```json
+{
+  "total_records": 42,
+  "total_quantity_on_hand": 12500,
+  "total_stock_value": "13250.00",
+  "needs_reorder": 5,
+  "by_site": {
+    "Warehouse A": {
+      "records": 25,
+      "total_quantity_on_hand": 8000,
+      "total_stock_value": "8500.00"
+    }
+  },
+  "activity": {
+    "last_7_days":   { "data": [{ "date": "2026-03-25", "new_records": 3 }] },
+    "last_14_days":  { "data": [{ "date": "2026-03-18", "new_records": 5 }] },
+    "last_30_days":  { "data": [{ "date": "2026-03-01", "new_records": 8 }] },
+    "last_3_months": { "data": [{ "week_start": "2026-01-05", "new_records": 12 }] }
+  }
+}
+```
+
+> **Chart note:** Only dates/weeks with activity are included. Fill missing dates with `0` on the frontend before rendering.
 
 ---
 
-### Create Inventory Record (POST)
+### Create Inventory Record
 `POST /api/v1/inventory/`
-
-Only send the writable fields — `stock_value` and `reorder_status` are calculated automatically.
 
 #### Payload
 ```json
@@ -537,92 +419,25 @@ Only send the writable fields — `stock_value` and `reorder_status` are calcula
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `product` | Yes | Product ID (foreign key) |
-| `site` | Yes | Site name (e.g. "Warehouse A") |
-| `location` | Yes | Location within the site (e.g. "A1-Shelf-5") |
+| `product` | Yes | Product ID |
+| `site` | Yes | Site name |
+| `location` | Yes | Location within the site |
 | `quantity_on_hand` | No | Starting quantity — defaults to `0`, must be ≥ 0 |
 
-#### Success (201 Created)
-```json
-{
-  "id": 1,
-  "product": 1,
-  "product_details": {
-    "id": 1,
-    "barcode": "SN-A1B2C3",
-    "product_name": "Zinc Bolt M8",
-    "category": "Fasteners",
-    "supplier": "CTK Industrial",
-    "cost_per_unit": "0.50",
-    "reorder_level": 100
-  },
-  "site": "Warehouse A",
-  "location": "A1-Shelf-5",
-  "quantity_on_hand": 500,
-  "stock_value": "250.00",
-  "reorder_status": "No",
-  "created_at": "2026-03-25T08:00:00Z",
-  "updated_at": "2026-03-25T08:00:00Z"
-}
-```
-
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `400 Bad Request` | `product`, `site`, or `location` missing | `{ "field": ["This field is required."] }` |
-| `400 Bad Request` | `quantity_on_hand` is negative (API level) | `{ "quantity_on_hand": ["Ensure this value is greater than or equal to 0."] }` |
-| `500 Server Error` | `quantity_on_hand` is negative (DB level) | `{ "detail": "Database integrity error: quantity cannot be negative." }` |
-| `409 Conflict` | Duplicate `product` + `site` + `location` | `{ "detail": "An inventory record for this product, site, and location already exists." }` |
+| `400 Bad Request` | Missing required field | `{ "field": ["This field is required."] }` |
+| `409 Conflict` | Duplicate product + site + location | `{ "detail": "An inventory record for this product, site, and location already exists." }` |
 
 ---
 
-### Retrieve Inventory Record (GET)
-`GET /api/v1/inventory/{id}/`
+## 5. Barcode Scan Lookup
 
-#### Errors
-| Status | Response |
-|--------|----------|
-| `404 Not Found` | `{ "detail": "No Inventory matches the given query." }` |
-
----
-
-### Update Inventory Record (PUT / PATCH)
-`PUT /api/v1/inventory/{id}/` — full replace (all writable fields required)
-`PATCH /api/v1/inventory/{id}/` — partial update (only send fields to change)
-
-> `stock_value` and `reorder_status` are ignored if included — they are always recalculated from transactions.
-
-#### PATCH Payload Example
-```json
-{
-  "location": "B2-Shelf-3"
-}
-```
-
-#### Errors
-| Status | Scenario | Response |
-|--------|----------|----------|
-| `409 Conflict` | Duplicate `product` + `site` + `location` | `{ "detail": "An inventory record for this product, site, and location already exists." }` |
-| `404 Not Found` | Record not found | `{ "detail": "No Inventory matches the given query." }` |
-
----
-
-### Delete Inventory Record (DELETE)
-`DELETE /api/v1/inventory/{id}/`
-
-#### Success (204 No Content) — empty body
-
-#### Errors
-| Status | Response |
-|--------|----------|
-| `404 Not Found` | `{ "detail": "No Inventory matches the given query." }` |
-
----
-
-## 7. Barcode Scan Lookup
 Resolve a scanned barcode into its inventory records. Used by the **scan page**.
 
 - **Endpoint:** `GET /api/v1/inventory/scan/?barcode=<barcode>`
+- **Auth required:** Yes
 
 ### Responses
 
@@ -646,160 +461,65 @@ Resolve a scanned barcode into its inventory records. Used by the **scan page**.
       "location": "A1-Shelf-5",
       "quantity_on_hand": 500,
       "stock_value": "250.00",
-      "reorder_status": "No",
-      ...
+      "reorder_status": "No"
     }
   ]
 }
 ```
 
-**Product exists but has no inventory record (200 OK)**
+**Product exists but no inventory record (200 OK)**
 ```json
-{
-  "found": false,
-  "product": { ... },
-  "inventory": []
-}
+{ "found": false, "product": { "..." }, "inventory": [] }
 ```
 
 **Barcode not found (404)**
 ```json
-{
-  "found": false,
-  "detail": "No product found with this barcode."
-}
+{ "found": false, "detail": "No product found with this barcode." }
 ```
 
 **Missing barcode param (400)**
 ```json
-{
-  "detail": "barcode query parameter is required."
-}
+{ "detail": "barcode query parameter is required." }
 ```
 
 ### Frontend flow (scan page)
-1. Scan barcode → `GET /api/v1/inventory/scan/?barcode=<scanned_value>`
-2. If `found: true` → show inventory list, user picks a site/location
-3. If `found: false` with product → show "item not in inventory"
-4. If 404 → show "unknown barcode"
-5. User confirms quantity + type → `POST /api/v1/transactions/scan/` (for single item) or `POST /api/v1/transactions/` (for bulk)
+1. Scan barcode → `GET /api/v1/inventory/scan/?barcode=<value>`
+2. `found: true` → show inventory list, user picks site/location
+3. `found: false` with product → show "item not in inventory"
+4. `404` → show "unknown barcode"
+5. User confirms → `POST /api/v1/transactions/scan/` (single item) or `POST /api/v1/transactions/` (bulk)
 
 ---
 
-## 8. Transactions (Stock In / Out)
-Log stock movements. A single transaction has **one type** (`Receive` or `Sale`) and can contain **multiple items** across different inventory records. Creating a transaction automatically updates all linked inventory balances.
+## 6. Transactions
+
+Log stock movements. A transaction has **one type** (`Receive` or `Sale`) and can contain **multiple items**. Creating a transaction automatically updates all linked inventory balances.
 
 - **Base Endpoint:** `/api/v1/transactions/`
-- **Methods:**
-  - `GET /api/v1/transactions/` — List all transactions (no pagination)
-  - `GET /api/v1/transactions/stats/` — Overview stats (not paginated) → `200 OK`
-  - `GET /api/v1/transactions/export/` — Export transactions for a day as CSV → `200 OK`
-  - `POST /api/v1/transactions/` — Create a new transaction with items
-  - `POST /api/v1/transactions/scan/` — Quick create single-item transaction by barcode scan
-  - `GET /api/v1/transactions/<id>/` — Retrieve a transaction by id
-  - `PUT /api/v1/transactions/<id>/` — Replace a transaction by id
-  - `PATCH /api/v1/transactions/<id>/` — Update part of a transaction by id
-  - `DELETE /api/v1/transactions/<id>/` — Delete a transaction by id
 
-### Transaction Stats (GET)
-`GET /api/v1/transactions/stats/` — returns aggregate overview for the dashboard. Not paginated.
-
-#### Response (200 OK)
-```json
-{
-  "total_transactions": 200,
-  "today_transactions": 15,
-  "by_type": {
-    "Receive": {
-      "total_count": 120,
-      "today_count": 10,
-      "today_total_quantity": 85
-    },
-    "Sale": {
-      "total_count": 80,
-      "today_count": 5,
-      "today_total_quantity": 22
-    }
-  }
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `total_transactions` | `number` | Total number of transactions (all time) |
-| `today_transactions` | `number` | Number of transactions created today |
-| `by_type.*.total_count` | `number` | Total number of transactions of that type (all time) |
-| `by_type.*.today_count` | `number` | Number of transactions of that type created today |
-| `by_type.*.today_total_quantity` | `number` | Sum of all item quantities across today's transactions of that type. Always `0` if no transactions today. |
-
-#### Frontend Integration Notes
-- `by_type` keys are always `"Receive"` and `"Sale"` (exact casing — match it in your type definitions).
-- `today_total_quantity` is the **sum of `quantity` across all `TransactionItem` rows** linked to today's transactions of that type. Use this to display how many units were received or sold today.
-- If no transactions of a type occurred today, `today_count` will be `0` and `today_total_quantity` will be `0`.
-- This endpoint has no query parameters — it always reflects the current calendar day (server timezone).
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `GET` | `/api/v1/transactions/` | List all transactions | `200 OK` |
+| `POST` | `/api/v1/transactions/` | Create a transaction | `201 Created` |
+| `GET` | `/api/v1/transactions/{id}/` | Retrieve a transaction | `200 OK` |
+| `PUT` | `/api/v1/transactions/{id}/` | Full replace | `200 OK` |
+| `PATCH` | `/api/v1/transactions/{id}/` | Partial update | `200 OK` |
+| `DELETE` | `/api/v1/transactions/{id}/` | Delete a transaction | `204 No Content` |
+| `GET` | `/api/v1/transactions/stats/` | Aggregate overview | `200 OK` |
+| `GET` | `/api/v1/transactions/export/` | Export as CSV | `200 OK` |
+| `POST` | `/api/v1/transactions/scan/` | Quick single-item transaction | `201 Created` |
 
 ---
 
-### Export Transactions (GET)
-`GET /api/v1/transactions/export/` — downloads a `.csv` file of all transactions (one row per item) for a given day.
+### List Transactions
+`GET /api/v1/transactions/`
 
 #### Query Parameters
-| Param | Format | Default | Description |
-|-------|--------|---------|-------------|
-| `date` | `YYYY-MM-DD` | today | The day to export |
-| `type` | `Receive` \| `Sale` | — (both) | Filter by transaction type |
-
-**Examples**
-```
-GET /api/v1/transactions/export/
-GET /api/v1/transactions/export/?date=2026-04-06
-GET /api/v1/transactions/export/?date=2026-04-06&type=Sale
-GET /api/v1/transactions/export/?type=Receive
-```
-
-#### Response (200 OK)
-Returns a CSV file download with `Content-Disposition: attachment; filename="transactions_YYYY-MM-DD.csv"` (or `transactions_YYYY-MM-DD_receive.csv` / `transactions_YYYY-MM-DD_sale.csv` when filtered by type).
-
-**CSV columns:**
-| Column | Description |
-|--------|-------------|
-| `transaction_id` | Transaction ID |
-| `transaction_type` | `Receive` or `Sale` |
-| `transaction_date` | Date and time (`YYYY-MM-DD HH:MM:SS`) |
-| `performed_by` | Username of the user who created the transaction |
-| `product_name` | Product name |
-| `barcode` | Product barcode |
-| `site` | Inventory site |
-| `location` | Inventory location within the site |
-| `quantity` | Quantity moved (positive = Receive, negative = Sale) |
-| `cost_per_unit` | Cost per unit at the time of the transaction |
-| `line_total` | `quantity × cost_per_unit` |
-
-**Example PDF output:**
-```
-transaction_id,transaction_type,transaction_date,performed_by,product_name,barcode,site,location,quantity,cost_per_unit,line_total
-1,Receive,2026-04-06 09:00:00,staff_user,Zinc Bolt M8,4006381333931,SITE A,A1-Shelf-5,10,0.50,5.00
-1,Receive,2026-04-06 09:00:00,staff_user,Hex Nut M8,SN-A1B2C3,SITE A,B2-Shelf-1,5,8.50,42.50
-2,Sale,2026-04-06 11:30:00,staff_user,Zinc Bolt M8,4006381333931,SITE A,A1-Shelf-5,-3,0.50,-1.50
-```
-
-#### Errors
-| Status | Scenario | Response |
-|--------|----------|----------|
-| `400 Bad Request` | Invalid `date` format | `{ "detail": "Invalid date format. Use YYYY-MM-DD." }` |
-| `400 Bad Request` | Invalid `type` value | `{ "detail": "Invalid type. Use Receive or Sale." }` |
-
----
-
-### List Transactions (GET)
-`GET /api/v1/transactions/` — returns all transactions with no limit.
-
-#### Query Parameters
-| Param | Options | Default |
-|-------|---------|---------|
-| `type` | `Receive`, `Sale` | — |
-| `barcode` | string | Filter by product barcode |
-| `search` | string | Search by product name |
+| Param | Description |
+|-------|-------------|
+| `type=Receive\|Sale` | Filter by transaction type |
+| `barcode=<barcode>` | Filter by product barcode |
+| `search=<term>` | Search by product name |
 
 #### Response (200 OK)
 ```json
@@ -816,41 +536,66 @@ transaction_id,transaction_type,transaction_date,performed_by,product_name,barco
 ]
 ```
 
-### Query Parameters (GET list)
-| Param | Description |
-|-------|-------------|
-| `type=Receive\|Sale` | Filter by transaction type |
-| `barcode=<barcode>` | Filter by product barcode (matches any item in the transaction) |
-| `search=<term>` | Search by product name (matches any item in the transaction) |
+---
 
-> `inventory_id` filter removed — transactions now hold multiple items, filter by `barcode` or `search` instead.
+### Transaction Stats
+`GET /api/v1/transactions/stats/`
 
-### Create Transaction (POST)
+#### Response (200 OK)
+```json
+{
+  "total_transactions": 200,
+  "today_transactions": 15,
+  "by_type": {
+    "Receive": { "total_count": 120, "today_count": 10, "today_total_quantity": 85 },
+    "Sale":    { "total_count": 80,  "today_count": 5,  "today_total_quantity": 22 }
+  }
+}
+```
 
-- `transaction_type` is set **once at the header** — all items must follow it (no mixing)
+---
+
+### Export Transactions
+`GET /api/v1/transactions/export/`
+
+Returns a `.csv` file (one row per item) for a given day.
+
+#### Query Parameters
+| Param | Format | Default | Description |
+|-------|--------|---------|-------------|
+| `date` | `YYYY-MM-DD` | today | Day to export |
+| `type` | `Receive` \| `Sale` | — (both) | Filter by type |
+
+**CSV columns:** `transaction_id`, `transaction_type`, `transaction_date`, `performed_by`, `product_name`, `barcode`, `site`, `location`, `quantity`, `cost_per_unit`, `line_total`
+
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400 Bad Request` | Invalid date format | `{ "detail": "Invalid date format. Use YYYY-MM-DD." }` |
+| `400 Bad Request` | Invalid type | `{ "detail": "Invalid type. Use Receive or Sale." }` |
+
+---
+
+### Create Transaction
+`POST /api/v1/transactions/`
+
+- `transaction_type` applies to all items — no mixing
 - Use **positive** quantity for `Receive`, **negative** for `Sale`
-- `cost_per_unit` is **auto-snapshotted** from the product at the time of creation — do not send it
-- `performed_by` is **auto-assigned** from the JWT token
+- `cost_per_unit` is auto-snapshotted from the product — do not send it
+- `performed_by` is auto-assigned from the JWT token
 
+#### Payload
 ```json
 {
   "transaction_type": "Receive",
   "items": [
     { "inventory": 1, "quantity": 10 },
-    { "inventory": 3, "quantity": 5 },
-    { "inventory": 7, "quantity": 20 }
+    { "inventory": 3, "quantity": 5 }
   ]
 }
 ```
 
-Transaction types: `Receive`, `Sale`
-
-### Auto-Update on Create
-For each item when a transaction is posted:
-1. `quantity_on_hand` on the linked inventory record is adjusted by the signed quantity.
-2. `stock_value` and `reorder_status` are recalculated immediately.
-
-### Response Example
+#### Response (201 Created)
 ```json
 {
   "id": 1,
@@ -859,78 +604,27 @@ For each item when a transaction is posted:
   "performed_by_username": "staff_user",
   "total_transaction_value": "262.50",
   "items": [
-    {
-      "id": 1,
-      "inventory": 1,
-      "product_name": "Zinc Bolt M8",
-      "quantity": 10,
-      "cost_per_unit": "14.00",
-      "line_total": "140.00"
-    },
-    {
-      "id": 2,
-      "inventory": 3,
-      "product_name": "Hex Nut M8",
-      "quantity": 5,
-      "cost_per_unit": "8.50",
-      "line_total": "42.50"
-    },
-    {
-      "id": 3,
-      "inventory": 7,
-      "product_name": "Steel Washer",
-      "quantity": 20,
-      "cost_per_unit": "4.00",
-      "line_total": "80.00"
-    }
+    { "id": 1, "inventory": 1, "product_name": "Zinc Bolt M8", "quantity": 10, "cost_per_unit": "14.00", "line_total": "140.00" },
+    { "id": 2, "inventory": 3, "product_name": "Hex Nut M8",   "quantity": 5,  "cost_per_unit": "8.50",  "line_total": "42.50" }
   ],
   "transaction_date": "2026-03-26T10:00:00Z"
 }
 ```
 
-### Validation Errors
-
-**No items sent (400)**
-```json
-{ "items": "At least one item is required." }
-```
-
-**Invalid transaction type (400)**
-```json
-{ "transaction_type": "Must be Receive or Sale." }
-```
-
-**Per-item errors (400)**
-```json
-{
-  "items": [
-    { "item": 2, "quantity": "Sale quantities must be negative." },
-    { "item": 3, "quantity": "Insufficient stock. Current balance is only 4 units." }
-  ]
-}
-```
-
-| Scenario | Error |
-|----------|-------|
-| Sale quantity is positive or zero | `"Sale quantities must be negative."` |
-| Sale exceeds current stock | `"Insufficient stock. Current balance is only X units."` |
-| Receive quantity is negative or zero | `"Receive quantities must be positive."` |
-
-### Frontend flow (transaction page)
-1. User selects `Receive` or `Sale` — this locks the type for all items
-2. User searches products → `GET /api/inventory?search=<term>` → add items to the list
-3. User enters quantity for each item
-4. `POST /api/v1/transactions` with `{ transaction_type, items: [{ inventory, quantity }, ...] }`
+#### Validation Errors
+| Scenario | Response |
+|----------|----------|
+| No items | `{ "items": "At least one item is required." }` |
+| Invalid type | `{ "transaction_type": "Must be Receive or Sale." }` |
+| Sale qty positive | `{ "items": [{ "item": 1, "quantity": "Sale quantities must be negative." }] }` |
+| Insufficient stock | `{ "items": [{ "item": 1, "quantity": "Insufficient stock. Current balance is only 4 units." }] }` |
 
 ---
 
-## 9. Scan Transaction (Stock In / Out via Barcode)
-Create a **single-item** transaction by scanning a product barcode. The frontend handles the camera and sends the barcode to this endpoint.
+### Scan Transaction (Single Item via Barcode)
+`POST /api/v1/transactions/scan/`
 
-- **Endpoint:** `POST /api/v1/transactions/scan/`
-- **Auth required:** Yes
-
-### Payload
+#### Payload
 ```json
 {
   "barcode": "SN-A1B2C3",
@@ -945,57 +639,25 @@ Create a **single-item** transaction by scanning a product barcode. The frontend
 | `barcode` | Yes | Scanned product barcode |
 | `transaction_type` | Yes | `Receive` or `Sale` |
 | `quantity` | Yes | Positive for Receive, negative for Sale |
-| `inventory_id` | Conditional | Required only if the product has multiple inventory records (different sites/locations) |
+| `inventory_id` | Conditional | Required only if the product has multiple inventory records |
 
-### Response (201 Created)
-Same shape as `POST /api/transactions` — full transaction object with one item in the `items` array.
+#### Response (201 Created)
+Same shape as `POST /api/v1/transactions/` with one item in `items`.
 
-### Error Responses
-
-**Missing required field (400)**
-```json
-{ "barcode": "This field is required." }
-```
-
-**Barcode not found (404)**
-```json
-{ "detail": "No product found with this barcode." }
-```
-
-**Product has no inventory record (404)**
-```json
-{ "detail": "Product found but has no inventory record.", "product": "Zinc Bolt M8" }
-```
-
-**Multiple inventory records — inventory_id not specified (400)**
-```json
-{
-  "detail": "Multiple inventory records found for this product. Please specify inventory_id.",
-  "inventory": [ { "id": 1, "site": "Warehouse A", ... }, { "id": 2, "site": "Warehouse B", ... } ]
-}
-```
-
-**inventory_id doesn't belong to this product (400)**
-```json
-{ "detail": "The specified inventory_id does not belong to this product." }
-```
-
-**Insufficient stock for Sale (400)**
-```json
-{ "items": [ { "item": 1, "quantity": "Insufficient stock. Current balance is only X units." } ] }
-```
-
-### Frontend flow (scan page)
-1. Camera scans barcode → `POST /api/v1/transactions/scan/` with `{ barcode, transaction_type, quantity }`
-2. If **400 with inventory list** → show site picker → re-submit with `inventory_id`
-3. If **404** → show "Unknown barcode" or "Not in inventory" message
-4. If **201** → show success with `total_transaction_value` and updated stock
+#### Errors
+| Status | Scenario | Response |
+|--------|----------|----------|
+| `400` | Missing field | `{ "barcode": "This field is required." }` |
+| `404` | Barcode not found | `{ "detail": "No product found with this barcode." }` |
+| `404` | No inventory record | `{ "detail": "Product found but has no inventory record.", "product": "Zinc Bolt M8" }` |
+| `400` | Multiple records, no `inventory_id` | `{ "detail": "Multiple inventory records found. Please specify inventory_id.", "inventory": [...] }` |
+| `400` | Wrong `inventory_id` | `{ "detail": "The specified inventory_id does not belong to this product." }` |
 
 ---
 
-## 10. Dashboard Stats
+## 7. Dashboard Stats
 
-Aggregate stats scoped to a date range — used to power the main dashboard page.
+Aggregate stats scoped to a date range.
 
 - **Endpoint:** `GET /api/v1/dashboard/stats/`
 - **Auth required:** Yes
@@ -1005,37 +667,28 @@ Aggregate stats scoped to a date range — used to power the main dashboard page
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `range` | string | `today` | Date range label (see table below) |
-| `start` | `YYYY-MM-DD` | — | Required only when `range=custom` |
-| `end` | `YYYY-MM-DD` | — | Required only when `range=custom` |
+| `start` | `YYYY-MM-DD` | — | Required when `range=custom` |
+| `end` | `YYYY-MM-DD` | — | Required when `range=custom` |
 
-### Supported `range` Values
-
-| Value | Window |
-|-------|--------|
-| `today` | Midnight → end of today (server timezone) |
+| `range` value | Window |
+|---------------|--------|
+| `today` | Midnight → end of today |
 | `7_days` | Last 7 days including today |
 | `14_days` | Last 14 days including today |
 | `30_days` | Last 30 days including today |
 | `3_months` | Last 90 days including today |
 | `12_months` | Last 365 days including today |
-| `all_time` | No date filter — returns all-time totals |
-| `custom` | Requires `start` and `end` params (`YYYY-MM-DD`) |
+| `all_time` | No date filter |
+| `custom` | Requires `start` and `end` |
 
-> All rolling windows are **inclusive of today** and count backwards. `7_days` = today + 6 previous days.
-
-### Examples
-
+**Examples**
 ```
 GET /api/v1/dashboard/stats/
 GET /api/v1/dashboard/stats/?range=7_days
-GET /api/v1/dashboard/stats/?range=30_days
-GET /api/v1/dashboard/stats/?range=12_months
-GET /api/v1/dashboard/stats/?range=all_time
 GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
 ```
 
 ### Response (200 OK)
-
 ```json
 {
   "range": {
@@ -1058,12 +711,7 @@ GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
     "total_stock_value": "13250.00",
     "needs_reorder": 5,
     "by_site": [
-      {
-        "site": "Warehouse A",
-        "records": 25,
-        "total_quantity": 8000,
-        "total_stock_value": "8500.00"
-      }
+      { "site": "Warehouse A", "records": 25, "total_quantity": 8000, "total_stock_value": "8500.00" }
     ]
   },
   "transactions": {
@@ -1086,139 +734,49 @@ GET /api/v1/dashboard/stats/?range=custom&start=2026-01-01&end=2026-03-31
 }
 ```
 
-### Response Fields
-
-**`range`**
-| Field | Description |
-|-------|-------------|
-| `label` | Resolved label (echoes back the `range` param, or `"today"` if an unknown value was given) |
-| `start` | ISO 8601 datetime — start of the window (`null` for `all_time`) |
-| `end` | ISO 8601 datetime — end of the window (`null` for `all_time`) |
-
-**`products`** — scoped by `created_at`
-| Field | Description |
-|-------|-------------|
-| `total` | Products created within the range |
-| `by_category` | Array of `{ category, count }` — categories of products in range |
-| `low_stock` | Inventory records for in-range products where `reorder_status = "Yes"` |
-| `out_of_stock` | Inventory records for in-range products where `quantity_on_hand = 0` |
-
-**`inventory`** — scoped by `updated_at`
-| Field | Description |
-|-------|-------------|
-| `total_records` | Inventory records touched within the range |
-| `total_quantity` | Sum of `quantity_on_hand` across those records |
-| `total_stock_value` | Sum of `stock_value` (string — treat as decimal) |
-| `needs_reorder` | Count of records where `reorder_status = "Yes"` |
-| `by_site` | Breakdown per site with `records`, `total_quantity`, `total_stock_value` |
-
-**`transactions`** — scoped by `transaction_date`
-| Field | Description |
-|-------|-------------|
-| `total` | Total transactions in range |
-| `by_type` | `Receive` and `Sale` keys, each with `count` and `total_quantity` |
-| `recent_activity` | Last 10 transactions in range, newest first |
-| `recent_activity[].item_count` | Number of line items in the transaction |
-| `recent_activity[].total_quantity` | Absolute sum of all item quantities |
+> - For `all_time`, `range.start` and `range.end` are `null` — guard before formatting.
+> - `total_stock_value` is a string — parse with `parseFloat()` before arithmetic.
+> - `by_type` may be missing a key if no transactions of that type exist — always default: `stats.by_type?.Sale ?? { count: 0, total_quantity: 0 }`.
+> - `recent_activity` is limited to 10 — no pagination needed.
 
 ### Error Responses
-
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `400` | Unknown `range` value | `{ "detail": "Invalid range. Valid options: 12_months, 14_days, ..." }` |
-| `400` | `range=custom` with missing/invalid `start` or `end` | `{ "detail": "Invalid date format for custom range. Use YYYY-MM-DD for start and end." }` |
-| `400` | `start` is after `end` | `{ "detail": "start must be before or equal to end." }` |
-
-### Frontend Integration Notes
-
-- For `all_time`, `range.start` and `range.end` will both be `null` — guard against this before formatting dates.
-- `total_stock_value` is a string — parse with `parseFloat()` or a decimal library before arithmetic.
-- `by_type` may be missing a key entirely if no transactions of that type exist in the range — always default: `stats.by_type?.Sale ?? { count: 0, total_quantity: 0 }`.
-- The `recent_activity` list is already limited to 10 — no pagination needed.
+| `400` | Unknown range | `{ "detail": "Invalid range. Valid options: ..." }` |
+| `400` | Custom range missing/invalid dates | `{ "detail": "Invalid date format for custom range. Use YYYY-MM-DD for start and end." }` |
+| `400` | `start` after `end` | `{ "detail": "start must be before or equal to end." }` |
 
 ---
 
-## 11. Boss Dashboard — Staff Users
-
-View and manage staff users in the system. **Requires `is_boss: true`, `is_staff: true`, or `is_superuser: true`.**
-
-> This endpoint allows boss-role users and admins to view, create, edit, and delete staff members. Superusers are protected and cannot be modified via these endpoints.
-
-- **Base Endpoint:** `GET /api/v1/users/boss/staff-users/`
-- **Methods:**
-  - `GET /api/v1/users/boss/staff-users/` — List staff users
-  - `POST /api/v1/users/boss/staff-users/` — Create new staff/boss
-  - `GET /api/v1/users/boss/staff-users/<id>/` — Retrieve a user
-  - `PUT /api/v1/users/boss/staff-users/<id>/` — Replace a user
-  - `PATCH /api/v1/users/boss/staff-users/<id>/` — Update a user
-  - `DELETE /api/v1/users/boss/staff-users/<id>/` — Delete a user
-- **Auth required:** Yes — `is_boss: true`, `is_staff: true`, or `is_superuser: true` in JWT
-
-### Response (200 OK)
-Returns all users where `is_staff=true` and `is_superuser=false`, ordered by username.
-
-```json
-[
-  {
-    "id": 3,
-    "username": "jane_staff",
-    "email": "jane@example.com",
-    "name": "Jane Smith",
-    "is_boss": false,
-    "is_staff": true,
-    "is_superuser": false
-  },
-  {
-    "id": 4,
-    "username": "mark_staff",
-    "email": "mark@example.com",
-    "name": "Mark Lee",
-    "is_boss": false,
-    "is_staff": true,
-    "is_superuser": false
-  }
-]
-```
-
-| Field | Description |
-|-------|-------------|
-| `id` | User primary key |
-| `username` | Login name |
-| `email` | Email address |
-| `name` | Display name |
-| `is_boss` | Always `false` in this list (bosses are excluded) |
-| `is_staff` | Always `true` in this list |
-| `is_superuser` | Always `false` in this list (superadmins are excluded) |
-
-### Errors
-| Status | Scenario | Response |
-|--------|----------|----------|
-| `401 Unauthorized` | No or invalid token | `{ "detail": "Authentication credentials were not provided." }` |
-| `403 Forbidden` | Authenticated but not a boss or admin | `{ "detail": "You do not have permission to perform this action." }` |
-
----
-
-## 12. Admin User Management
+## 8. Admin — User Management
 
 Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superuser`.**
 
-> **Field restriction:** `is_superuser` is only writable by a superadmin. `is_staff` is writable by superadmins and bosses. If a user without sufficient permissions sends these fields, they are silently ignored.
+- **Base Endpoint:** `/api/v1/admin/`
 
-- **Base Endpoint:** `/api/v1/users/admin/`
-- **Methods:**
-  - `GET /api/v1/users/admin/users/` — List all users → `200 OK`
-  - `POST /api/v1/users/admin/users/` — Create a new user → `201 Created`
-  - `GET /api/v1/users/admin/users/<id>/` — Retrieve a user → `200 OK`
-  - `PUT /api/v1/users/admin/users/<id>/` — Full replace of a user → `200 OK`
-  - `PATCH /api/v1/users/admin/users/<id>/` — Partial update of a user → `200 OK`
-  - `DELETE /api/v1/users/admin/users/<id>/` — Delete a user → `204 No Content`
-  - `GET /api/v1/users/admin/users/<id>/logs/` — List activity logs for a user → `200 OK`
-  - `GET /api/v1/users/admin/logs/` — List all activity logs across all users → `200 OK`
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `GET` | `/api/v1/admin/users/` | List all users | `200 OK` |
+| `POST` | `/api/v1/admin/users/` | Create a user | `201 Created` |
+| `GET` | `/api/v1/admin/users/{id}/` | Retrieve a user | `200 OK` |
+| `PUT` | `/api/v1/admin/users/{id}/` | Full replace | `200 OK` |
+| `PATCH` | `/api/v1/admin/users/{id}/` | Partial update | `200 OK` |
+| `DELETE` | `/api/v1/admin/users/{id}/` | Delete a user | `204 No Content` |
+| `GET` | `/api/v1/admin/users/{id}/logs/` | Activity logs for a user | `200 OK` |
+| `GET` | `/api/v1/admin/logs/` | All activity logs | `200 OK` |
+| `GET` | `/api/v1/admin/staff/` | List staff users | `200 OK` |
+| `POST` | `/api/v1/admin/staff/` | Create staff/boss user | `201 Created` |
+| `GET` | `/api/v1/admin/staff/{id}/` | Retrieve staff user | `200 OK` |
+| `PUT` | `/api/v1/admin/staff/{id}/` | Replace staff user | `200 OK` |
+| `PATCH` | `/api/v1/admin/staff/{id}/` | Update staff user | `200 OK` |
+| `DELETE` | `/api/v1/admin/staff/{id}/` | Delete staff user | `204 No Content` |
+
+> **Field restriction:** `is_superuser` is only writable by a superadmin. `is_staff` is writable by superadmins and bosses. Other roles' attempts to set these fields are silently ignored.
 
 ---
 
-### List Users (GET)
-`GET /api/v1/users/admin/users/` — returns all users, newest first.
+### List All Users
+`GET /api/v1/admin/users/` — returns all users, newest first.
 
 #### Response (200 OK)
 ```json
@@ -1240,8 +798,8 @@ Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superus
 
 ---
 
-### Create User (POST)
-`POST /api/v1/users/admin/users/`
+### Create User
+`POST /api/v1/admin/users/`
 
 #### Payload
 ```json
@@ -1260,41 +818,47 @@ Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superus
 | `username` | Yes | All | Unique login name |
 | `email` | No | All | Email address |
 | `name` | No | All | Display name |
-| `password` | Yes | All | Password (write-only, never returned) |
-| `is_boss` | No | All | Grant boss-level edit rights |
-| `is_active` | No | All | Set to `false` to deactivate without deleting |
-| `is_staff` | No | **Superadmin only** | Grant staff-level edit rights |
-| `is_superuser` | No | **Superadmin only** | Grant full admin rights |
-
-#### Success (201 Created) — returns the created user object
+| `password` | Yes | All | Write-only, never returned |
+| `is_boss` | No | All | Grant boss-level rights |
+| `is_active` | No | All | Set `false` to deactivate without deleting |
+| `is_staff` | No | Superadmin only | Grant staff-level rights |
+| `is_superuser` | No | Superadmin only | Grant full admin rights |
 
 #### Errors
 | Status | Scenario | Response |
 |--------|----------|----------|
-| `400 Bad Request` | `username` missing or taken | `{ "username": ["A user with that username already exists."] }` |
-| `400 Bad Request` | `password` missing | `{ "password": ["This field is required."] }` |
+| `400` | Username taken | `{ "username": ["A user with that username already exists."] }` |
+| `400` | Password missing | `{ "password": ["This field is required."] }` |
 
 ---
 
-### Retrieve / Update / Delete User
-- `GET /api/v1/users/admin/users/<id>/` — returns the user object
-- `PUT /api/v1/users/admin/users/<id>/` — full replace (same fields as POST)
-- `PATCH /api/v1/users/admin/users/<id>/` — partial update (send only fields to change)
-- `DELETE /api/v1/users/admin/users/<id>/` — deletes the user permanently
+### Staff Users
+`GET /api/v1/admin/staff/` — returns all users where `is_staff=true` and `is_superuser=false`, ordered by username.
 
-> Deleting a user is **logged** before deletion. All their activity logs are also deleted (cascade).
+> Superusers are protected and cannot be modified via these endpoints.
 
-#### Errors
-| Status | Scenario | Response |
-|--------|----------|----------|
-| `404 Not Found` | User not found | `{ "detail": "No User matches the given query." }` |
+#### Response (200 OK)
+```json
+[
+  {
+    "id": 3,
+    "username": "jane_staff",
+    "email": "jane@example.com",
+    "name": "Jane Smith",
+    "is_boss": false,
+    "is_staff": true,
+    "is_superuser": false
+  }
+]
+```
 
 ---
 
-### User Activity Logs (GET)
-`GET /api/v1/users/admin/users/<id>/logs/` — returns all activity logs for a specific user, newest first.
+### Activity Logs
 
-`GET /api/v1/users/admin/logs/` — returns all activity logs across every user, newest first.
+`GET /api/v1/admin/users/{id}/logs/` — logs for a specific user, newest first.
+
+`GET /api/v1/admin/logs/` — logs for all users, newest first.
 
 #### Response (200 OK)
 ```json
@@ -1314,6 +878,5 @@ Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superus
 | Field | Description |
 |-------|-------------|
 | `action` | One of: `login`, `logout`, `register`, `profile_update`, `password_change`, `other` |
-| `ip_address` | IP of the request (supports `X-Forwarded-For` for proxied environments) |
-| `details` | Free-text context (e.g. `"Created by admin john_doe"`, `"Account deleted by admin ..."`) |
-
+| `ip_address` | Client IP (supports `X-Forwarded-For` for proxied environments) |
+| `details` | Free-text context (e.g. `"Created by admin john_doe"`) |

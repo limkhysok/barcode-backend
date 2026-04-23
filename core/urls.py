@@ -6,8 +6,9 @@ from core.admin_site import admin_site
 
 urlpatterns = [
     path('admin/', admin_site.urls),
-    # Delegate to app-specific URL files with versioning
+    path('api/v1/auth/', include('users.auth_urls')),
     path('api/v1/users/', include('users.urls')),
+    path('api/v1/admin/', include('users.admin_urls')),
     path('api/v1/products/', include('products.urls')),
     path('api/v1/inventory/', include('inventory.urls')),
     path('api/v1/transactions/', include('transactions.urls')),

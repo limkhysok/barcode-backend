@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -39,7 +38,7 @@ DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 
-APPEND_SLASH = True
+APPEND_SLASH = False
 
 
 # Application definition
@@ -108,9 +107,13 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 
-missing_db_vars = [v for v in [DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT] if not v]
+missing_db_vars = [
+    v for v in [DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT] if not v
+]
 if missing_db_vars:
-    raise ImproperlyConfigured("All DB environment variables (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT) are required!")
+    raise ImproperlyConfigured(
+        "All DB environment variables (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT) are required!"
+    )
 
 DATABASES = {
     "default": {
@@ -235,10 +238,11 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # django-axes — brute-force login protection
-AXES_FAILURE_LIMIT = 5          # lock after 5 failed attempts
-AXES_COOLOFF_TIME = 1           # unlock after 1 hour
+AXES_ENABLED = not DEBUG  # Disable lockout in development
+AXES_FAILURE_LIMIT = 30  # lock after 30 failed attempts
+AXES_COOLOFF_TIME = 1  # unlock after 1 hour
 AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]
-AXES_RESET_ON_SUCCESS = True    # clear failure count on successful login
+AXES_RESET_ON_SUCCESS = True  # clear failure count on successful login
 
 # django-user-agents cache
 USER_AGENTS_CACHE = "default"
