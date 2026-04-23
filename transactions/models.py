@@ -7,7 +7,7 @@ class Transaction(models.Model):
 
     # The "Envelope" (Header)
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
-    transaction_date = models.DateTimeField(auto_now_add=True)
+    transaction_date = models.DateTimeField(auto_now_add=True, db_index=True)
     performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
     class Meta:
@@ -47,4 +47,6 @@ class TransactionItem(models.Model):
 
     @property
     def line_total(self):
+        if self.quantity is None or self.cost_per_unit is None:
+            return 0
         return self.quantity * self.cost_per_unit

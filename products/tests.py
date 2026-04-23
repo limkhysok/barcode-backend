@@ -9,7 +9,7 @@ from inventory.models import Inventory
 
 User = get_user_model()
 LIST_URL  = '/api/v1/products/'
-STATS_URL = '/api/v1/products/stats'
+STATS_URL = '/api/v1/products/stats/'
 
 
 def make_token(user):
@@ -23,11 +23,11 @@ class ProductStatsTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {make_token(self.user)}')
 
         self.fastener = Product.objects.create(
-            product_name='Bolt M8', category='Fasteners',
+            barcode='B1', product_name='Bolt M8', category='Fasteners',
             cost_per_unit=Decimal('0.50'), reorder_level=10, supplier='CTK',
         )
         self.accessory = Product.objects.create(
-            product_name='Safety Gloves', category='Accessories',
+            barcode='B2', product_name='Safety Gloves', category='Accessories',
             cost_per_unit=Decimal('5.00'), reorder_level=5, supplier='CTK',
         )
 
@@ -69,7 +69,7 @@ class ProductStatsTests(APITestCase):
 
     def test_total_products_updates_when_product_added(self):
         Product.objects.create(
-            product_name='New Bolt', category='Fasteners',
+            barcode='B3', product_name='New Bolt', category='Fasteners',
             cost_per_unit=Decimal('1.00'), reorder_level=5, supplier='CTK',
         )
         res = self.client.get(STATS_URL)
@@ -86,7 +86,7 @@ class ProductStatsTests(APITestCase):
     def test_total_value_not_limited_to_one_page(self):
         for i in range(25):
             Product.objects.create(
-                product_name=f'Extra Bolt {i}', category='Fasteners',
+                barcode=f'EXTRA-{i}', product_name=f'Extra Bolt {i}', category='Fasteners',
                 cost_per_unit=Decimal('1.00'), reorder_level=5, supplier='CTK',
             )
         res = self.client.get(STATS_URL)
@@ -94,6 +94,7 @@ class ProductStatsTests(APITestCase):
         self.assertEqual(Decimal(str(res.data['total_value'])), Decimal('30.50'))
 
     def test_total_value_zero_when_no_products(self):
+        Inventory.objects.all().delete()
         Product.objects.all().delete()
         res = self.client.get(STATS_URL)
         self.assertEqual(res.data['total_value'], 0)
@@ -125,6 +126,7 @@ class ProductStatsTests(APITestCase):
         )
 
     def test_by_category_total_value_zero_when_category_empty(self):
+        Inventory.objects.filter(product__category='Accessories').delete()
         Product.objects.filter(category='Accessories').delete()
         res = self.client.get(STATS_URL)
         self.assertNotIn('Accessories', res.data['by_category'])
@@ -138,55 +140,53 @@ class ProductListTests(APITestCase):
 
         # 3 Fasteners
         self.f1 = Product.objects.create(
-            product_name='Bolt M6', category='Fasteners',
+            barcode='F1', product_name='Bolt M6', category='Fasteners',
             cost_per_unit=Decimal('0.30'), reorder_level=5, supplier='CTK',
         )
         self.f2 = Product.objects.create(
-            product_name='Bolt M8', category='Fasteners',
+            barcode='F2', product_name='Bolt M8', category='Fasteners',
             cost_per_unit=Decimal('0.50'), reorder_level=20, supplier='CTK',
         )
         self.f3 = Product.objects.create(
-            product_name='Nut M6', category='Fasteners',
+            barcode='F3', product_name='Nut M6', category='Fasteners',
             cost_per_unit=Decimal('0.20'), reorder_level=10, supplier='CTK',
         )
         # 2 Accessories
         self.a1 = Product.objects.create(
-            product_name='Safety Gloves', category='Accessories',
+            barcode='A1', product_name='Safety Gloves', category='Accessories',
             cost_per_unit=Decimal('5.00'), reorder_level=3, supplier='CTK',
         )
         self.a2 = Product.objects.create(
-            product_name='Hard Hat', category='Accessories',
+            barcode='A2', product_name='Hard Hat', category='Accessories',
             cost_per_unit=Decimal('12.00'), reorder_level=8, supplier='CTK',
         )
 
     # --- page_size ---
 
-    def test_default_page_size_is_20(self):
+    def test_list_all_products_by_default(self):
         res = self.client.get(LIST_URL)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn('results', res.data)
-        self.assertIn('count', res.data)
-
-    def test_page_size_all_returns_every_product(self):
-        res = self.client.get(LIST_URL, {'page_size': 'all'})
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # Verify it returns all 5 records without pagination links
         self.assertEqual(res.data['count'], 5)
         self.assertEqual(len(res.data['results']), 5)
-        self.assertIsNone(res.data['next'])
-        self.assertIsNone(res.data['previous'])
+        self.assertNotIn('next', res.data)
+        self.assertNotIn('previous', res.data)
 
-    def test_page_size_all_includes_products_beyond_default_20(self):
+    def test_list_all_includes_products_beyond_20_by_default(self):
         for i in range(20):
             Product.objects.create(
-                product_name=f'Extra {i}', category='Fasteners',
+                barcode=f'EXTRA-LIST-{i}', product_name=f'Extra {i}', category='Fasteners',
                 cost_per_unit=Decimal('1.00'), reorder_level=5, supplier='CTK',
             )
-        res = self.client.get(LIST_URL, {'page_size': 'all'})
+        res = self.client.get(LIST_URL)
         self.assertEqual(len(res.data['results']), 25)
+        self.assertEqual(res.data['count'], 25)
 
-    def test_page_size_50_accepted(self):
-        res = self.client.get(LIST_URL, {'page_size': 50})
+    def test_page_size_param_is_ignored(self):
+        # We accept it but it doesn't change anything, returns all
+        res = self.client.get(LIST_URL, {'page_size': 1})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data['results']), 5)
 
     # --- category filter ---
 
@@ -210,22 +210,22 @@ class ProductListTests(APITestCase):
     # --- ordering ---
 
     def test_ordering_cost_low_to_high(self):
-        res = self.client.get(LIST_URL, {'ordering': 'cost_per_unit', 'page_size': 'all'})
+        res = self.client.get(LIST_URL, {'ordering': 'cost_per_unit'})
         costs = [Decimal(str(p['cost_per_unit'])) for p in res.data['results']]
         self.assertEqual(costs, sorted(costs))
 
     def test_ordering_cost_high_to_low(self):
-        res = self.client.get(LIST_URL, {'ordering': '-cost_per_unit', 'page_size': 'all'})
+        res = self.client.get(LIST_URL, {'ordering': '-cost_per_unit'})
         costs = [Decimal(str(p['cost_per_unit'])) for p in res.data['results']]
         self.assertEqual(costs, sorted(costs, reverse=True))
 
     def test_ordering_reorder_level_low_to_high(self):
-        res = self.client.get(LIST_URL, {'ordering': 'reorder_level', 'page_size': 'all'})
+        res = self.client.get(LIST_URL, {'ordering': 'reorder_level'})
         levels = [p['reorder_level'] for p in res.data['results']]
         self.assertEqual(levels, sorted(levels))
 
     def test_ordering_reorder_level_high_to_low(self):
-        res = self.client.get(LIST_URL, {'ordering': '-reorder_level', 'page_size': 'all'})
+        res = self.client.get(LIST_URL, {'ordering': '-reorder_level'})
         levels = [p['reorder_level'] for p in res.data['results']]
         self.assertEqual(levels, sorted(levels, reverse=True))
 
@@ -235,13 +235,12 @@ class ProductListTests(APITestCase):
         res = self.client.get(LIST_URL, {
             'category': 'Fasteners',
             'ordering': 'cost_per_unit',
-            'page_size': 'all',
         })
         self.assertEqual(res.data['count'], 3)
         costs = [Decimal(str(p['cost_per_unit'])) for p in res.data['results']]
         self.assertEqual(costs, sorted(costs))
 
-    def test_category_and_page_size_combined(self):
-        res = self.client.get(LIST_URL, {'category': 'Accessories', 'page_size': 50})
+    def test_category_combined(self):
+        res = self.client.get(LIST_URL, {'category': 'Accessories'})
         self.assertEqual(res.data['count'], 2)
         self.assertEqual(len(res.data['results']), 2)

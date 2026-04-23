@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -38,7 +37,8 @@ DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
-APPEND_SLASH = True
+
+APPEND_SLASH = False
 
 
 # Application definition
@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "axes",
+    "django_user_agents",
     # Local apps
     "users",
     "products",
@@ -65,10 +67,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_user_agents.middleware.UserAgentMiddleware",
+    "axes.middleware.AxesMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -78,7 +83,7 @@ ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -102,9 +107,13 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 
-missing_db_vars = [v for v in [DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT] if not v]
+missing_db_vars = [
+    v for v in [DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT] if not v
+]
 if missing_db_vars:
-    raise ImproperlyConfigured("All DB environment variables (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT) are required!")
+    raise ImproperlyConfigured(
+        "All DB environment variables (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT) are required!"
+    )
 
 DATABASES = {
     "default": {
@@ -116,6 +125,21 @@ DATABASES = {
         "PORT": DB_PORT,
         "OPTIONS": {
             "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+    }
+}
+
+
+# Cache
+# https://docs.djangoproject.com/en/6.0/ref/settings/#caches
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
     }
 }
@@ -145,17 +169,32 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Phnom_Penh"
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+
+# Enable WhiteNoise's compression and caching support
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -169,8 +208,15 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
-    "DEFAULT_PAGINATION_CLASS": "core.pagination.LimitOnlyPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "60/min",
+        "user": "1000/day",
+        "login": "5/min",
+    },
 }
 
 # Simple JWT settings
@@ -199,3 +245,20 @@ SIMPLE_JWT = {
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # Set to False and use CORS_ALLOWED_ORIGINS in production
+
+# Authentication backends — axes must come first
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# django-axes — brute-force login protection
+AXES_ENABLED = not DEBUG  # Disable lockout in development
+AXES_FAILURE_LIMIT = 30  # lock after 30 failed attempts
+AXES_COOLOFF_TIME = 1  # unlock after 1 hour
+AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]
+AXES_RESET_ON_SUCCESS = True  # clear failure count on successful login
+AXES_CACHE_BACKEND = "default"  # Use Redis for brute-force tracking
+
+# django-user-agents cache
+USER_AGENTS_CACHE = "default"

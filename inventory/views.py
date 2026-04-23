@@ -1,26 +1,20 @@
 from datetime import timedelta
+from django.db import IntegrityError
 from django.db.models import Sum, Count, Q
-from django.db.models.functions import TruncDate, TruncWeek
+from django.db.models.functions import TruncDate
 from django.utils import timezone
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Inventory
+from .models import Inventory, STATUS_LOW, STATUS_NO_STOCK
 from .serializers import InventorySerializer
 from products.models import Product
+from products.serializers import ProductSerializer
+from users.permissions import RBACPermission
+from users.utils import log_activity
 
 
-DEFAULT_PAGE_SIZE = 20
-ALLOWED_PAGE_SIZES = {20, 50, 100, 200, 500, 1000}
 
-ALLOWED_ORDERINGS = {
-    'product_name', '-product_name',
-    'site', '-site',
-    'location', '-location',
-    'reorder_status', '-reorder_status',
-    'updated_at', '-updated_at',
-    'quantity_on_hand', '-quantity_on_hand',
-}
 
 
 class InventoryViewSet(viewsets.ModelViewSet):
@@ -32,8 +26,6 @@ class InventoryViewSet(viewsets.ModelViewSet):
       ?site=<name>                  - filter by site (case-insensitive)
       ?search=<term>                - search by product name (for transaction page dropdown)
       ?ordering=<field>             - sort results (e.g., quantity_on_hand, -updated_at)
-      ?page_size=<n>                - limit results (20, 50, 100, 200, 500, 1000 or 'all')
-                                      defaults to 20
 
     Extra actions:
       GET /api/v1/inventory/scan/?barcode=<barcode>
@@ -43,98 +35,118 @@ class InventoryViewSet(viewsets.ModelViewSet):
     """
     queryset = Inventory.objects.select_related('product').order_by('-updated_at')
     serializer_class = InventorySerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = None  # Disable global page-number pagination
+    permission_classes = [RBACPermission]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         params = self.request.query_params
 
         product_id = params.get('product_id')
-        site_name = params.get('site')
-        search = params.get('search')
-        reorder_status = params.get('reorder_status')
-
         if product_id:
             queryset = queryset.filter(product_id=product_id)
-        if site_name:
-            # Matches SITE A, SITE B, SITE C, SITE D etc. (inclusive icontains)
-            queryset = queryset.filter(site__icontains=site_name)
-        if reorder_status:
-            # Handles 'Yes' or 'No' (standardized case-insensitive)
-            queryset = queryset.filter(reorder_status__iexact=reorder_status)
+
+        site = params.get('site')
+        if site:
+            queryset = queryset.filter(site__iexact=site)
+
+        search = params.get('search')
         if search:
             queryset = queryset.filter(product__product_name__icontains=search)
-
-        ordering = params.get('ordering')
-        if ordering in ALLOWED_ORDERINGS:
-            # Map aliases to model fields
-            if ordering == 'product_name':
-                ordering = 'product__product_name'
-            elif ordering == '-product_name':
-                ordering = '-product__product_name'
-            
-            queryset = queryset.order_by(ordering)
 
         return queryset
 
     def list(self, request):
         queryset = self.filter_queryset(self.get_queryset())
-
-        raw = request.query_params.get('page_size', '').strip().lower()
-        if raw == 'all':
-            limit = None
-        else:
-            try:
-                size = int(raw)
-                limit = size if size in ALLOWED_PAGE_SIZES else DEFAULT_PAGE_SIZE
-            except (ValueError, TypeError):
-                limit = DEFAULT_PAGE_SIZE
-
-        total = queryset.count()
-        if limit is not None:
-            queryset = queryset[:limit]
-
         serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'count': total,
-            'page_size': limit if limit is not None else total,
-            'results': serializer.data,
+        return Response({'count': len(serializer.data), 'results': serializer.data})
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            self.perform_create(serializer)
+        except IntegrityError:
+            return Response(
+                {"detail": "An inventory record for this product, site, and location already exists."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def _save_and_refresh(self, serializer):
+        instance = serializer.save()
+        instance.refresh_stats()
+
+    def perform_create(self, serializer):
+        self._save_and_refresh(serializer)
+        obj = serializer.instance
+        log_activity(self.request, 'inventory_created', {
+            'inventory_id': obj.id,
+            'product': obj.product.product_name,
+            'site': obj.site,
+            'quantity': obj.quantity_on_hand,
         })
 
-    def _activity_data(self, qs, days, group_by='day'):
-        """
-        Return new inventory records created within the last `days` days,
-        grouped by day (for 7/14/30-day windows) or by week (for 3-month window).
-        Missing dates/weeks are not included — frontend fills zeros.
-        """
-        cutoff = timezone.now() - timedelta(days=days)
-        filtered = qs.filter(created_at__gte=cutoff)
+    def perform_update(self, serializer):
+        self._save_and_refresh(serializer)
+        obj = serializer.instance
+        log_activity(self.request, 'inventory_updated', {
+            'inventory_id': obj.id,
+            'product': obj.product.product_name,
+            'site': obj.site,
+            'quantity': obj.quantity_on_hand,
+        })
 
-        if group_by == 'week':
-            rows = (
-                filtered
-                .annotate(period=TruncWeek('created_at'))
-                .values('period')
-                .annotate(new_records=Count('id'))
-                .order_by('period')
-            )
-            return [
-                {'week_start': row['period'].date().isoformat(), 'new_records': row['new_records']}
-                for row in rows
-            ]
+    def perform_destroy(self, instance):
+        log_activity(self.request, 'inventory_deleted', {
+            'inventory_id': instance.id,
+            'product': instance.product.product_name,
+            'site': instance.site,
+        })
+        instance.delete()
 
+    def _build_activity(self, qs):
+        """
+        Single DB query for 90 days of daily data, then slice in Python
+        for each window (7/14/30 days daily, 90 days weekly).
+        """
+        cutoff = timezone.now() - timedelta(days=90)
         rows = (
-            filtered
-            .annotate(period=TruncDate('created_at'))
+            qs.filter(updated_at__gte=cutoff)
+            .annotate(period=TruncDate('updated_at'))
             .values('period')
             .annotate(new_records=Count('id'))
             .order_by('period')
         )
-        return [
-            {'date': row['period'].isoformat(), 'new_records': row['new_records']}
-            for row in rows
-        ]
+        daily = [(row['period'], row['new_records']) for row in rows]
+
+        today = timezone.now().date()
+
+        def slice_days(days):
+            cutoff_date = today - timedelta(days=days)
+            return [
+                {'date': d.isoformat(), 'new_records': n}
+                for d, n in daily if d >= cutoff_date
+            ]
+
+        def to_weeks():
+            from collections import defaultdict
+            week_totals = defaultdict(int)
+            for d, n in daily:
+                week_start = d - timedelta(days=d.weekday())
+                week_totals[week_start] += n
+            return [
+                {'week_start': w.isoformat(), 'new_records': n}
+                for w, n in sorted(week_totals.items())
+            ]
+
+        return {
+            "last_7_days":   {"data": slice_days(7)},
+            "last_14_days":  {"data": slice_days(14)},
+            "last_30_days":  {"data": slice_days(30)},
+            "last_3_months": {"data": to_weeks()},
+        }
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
@@ -148,7 +160,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
             total_records=Count('id'),
             total_quantity=Sum('quantity_on_hand'),
             total_stock_value=Sum('stock_value'),
-            needs_reorder=Count('id', filter=Q(reorder_status='Yes')),
+            needs_reorder=Count('id', filter=Q(reorder_status__in=[STATUS_LOW, STATUS_NO_STOCK])),
         )
 
         by_site = (
@@ -174,12 +186,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
                 }
                 for row in by_site
             },
-            "activity": {
-                "last_7_days":    {"data": self._activity_data(qs, 7,   'day')},
-                "last_14_days":   {"data": self._activity_data(qs, 14,  'day')},
-                "last_30_days":   {"data": self._activity_data(qs, 30,  'day')},
-                "last_3_months":  {"data": self._activity_data(qs, 90,  'week')},
-            },
+            "activity": self._build_activity(qs),
         })
 
     @action(detail=False, methods=['get'], url_path='scan')
@@ -217,9 +224,8 @@ class InventoryViewSet(viewsets.ModelViewSet):
         inventory_qs = Inventory.objects.filter(product=product).order_by('site', 'location')
         inventory_data = InventorySerializer(inventory_qs, many=True).data
 
-        from products.serializers import ProductSerializer
         return Response({
-            "found": inventory_qs.exists(),
+            "found": len(inventory_data) > 0,
             "product": ProductSerializer(product).data,
             "inventory": inventory_data,
         })

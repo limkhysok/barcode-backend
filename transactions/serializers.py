@@ -37,15 +37,13 @@ class TransactionSerializer(serializers.ModelSerializer):
     def get_total_transaction_value(self, obj):
         return obj.total_transaction_value
 
-    def _validate_item(self, transaction_type, item, index):
+    def _validate_item_structure(self, transaction_type, item, index):
+        """Validate quantity sign only. Stock level and cost checks happen inside the atomic block."""
         quantity = item.get('quantity', 0)
-        inventory = item.get('inventory')
 
         if transaction_type == 'Sale':
             if quantity >= 0:
                 return {'item': index, 'quantity': 'Sale quantities must be negative.'}
-            if abs(quantity) > inventory.quantity_on_hand:
-                return {'item': index, 'quantity': f'Insufficient stock. Current balance is only {inventory.quantity_on_hand} units.'}
 
         elif transaction_type == 'Receive' and quantity <= 0:
             return {'item': index, 'quantity': 'Receive quantities must be positive.'}
@@ -64,13 +62,46 @@ class TransactionSerializer(serializers.ModelSerializer):
 
         item_errors = [
             error for i, item in enumerate(items)
-            if (error := self._validate_item(transaction_type, item, i + 1))
+            if (error := self._validate_item_structure(transaction_type, item, i + 1))
         ]
 
         if item_errors:
             raise serializers.ValidationError({'items': item_errors})
 
         return data
+
+    def _check_stock_and_cost(self, transaction_type, items_data, locked_inventory):
+        """
+        Validate stock levels and product cost after acquiring DB locks.
+        Must be called inside an atomic block with select_for_update() already applied.
+        Returns a list of error dicts, or an empty list if all items are valid.
+        """
+        errors = []
+        for i, item_data in enumerate(items_data):
+            inventory = locked_inventory[item_data['inventory'].id]
+            quantity = item_data['quantity']
+            cost_per_unit = inventory.product.cost_per_unit
+
+            if not cost_per_unit:
+                errors.append({
+                    'item': i + 1,
+                    'detail': (
+                        f'Product "{inventory.product.product_name}" has no cost set. '
+                        'Set a cost_per_unit on the product before creating transactions.'
+                    ),
+                })
+                continue
+
+            if transaction_type == 'Sale' and abs(quantity) > inventory.quantity_on_hand:
+                errors.append({
+                    'item': i + 1,
+                    'quantity': (
+                        f'Insufficient stock. '
+                        f'Current balance is only {inventory.quantity_on_hand} units.'
+                    ),
+                })
+
+        return errors
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -85,13 +116,23 @@ class TransactionSerializer(serializers.ModelSerializer):
             inventory_ids = [item['inventory'].id for item in items_data]
             locked_inventory = {
                 inv.id: inv
-                for inv in Inventory.objects.select_for_update().filter(id__in=inventory_ids)
+                for inv in Inventory.objects.select_for_update()
+                                            .select_related('product')
+                                            .filter(id__in=inventory_ids)
             }
+
+            # Re-validate stock levels and costs with the locked, up-to-date inventory rows.
+            # This closes the race condition window between validate() and the actual write.
+            errors = self._check_stock_and_cost(
+                validated_data['transaction_type'], items_data, locked_inventory
+            )
+            if errors:
+                raise serializers.ValidationError({'items': errors})
 
             for item_data in items_data:
                 inventory = locked_inventory[item_data['inventory'].id]
                 quantity = item_data['quantity']
-                cost_per_unit = inventory.product.cost_per_unit or Decimal('0.00')
+                cost_per_unit = inventory.product.cost_per_unit
 
                 TransactionItem.objects.create(
                     transaction=transaction,
@@ -113,29 +154,39 @@ class TransactionSerializer(serializers.ModelSerializer):
             instance.save()
 
             if items_data is not None:
-                # Lock all inventory records involved (existing + new) before modifying
+                # Lock all inventory records involved (existing + new) before touching anything.
                 existing_inventory_ids = list(instance.items.values_list('inventory_id', flat=True))
                 new_inventory_ids = [item['inventory'].id for item in items_data]
                 all_ids = list(set(existing_inventory_ids + new_inventory_ids))
                 locked_inventory = {
                     inv.id: inv
-                    for inv in Inventory.objects.select_for_update().filter(id__in=all_ids)
+                    for inv in Inventory.objects.select_for_update()
+                                                .select_related('product')
+                                                .filter(id__in=all_ids)
                 }
 
-                # Reverse inventory effects of all existing items
+                # Reverse the inventory effects of all existing items so that in-memory
+                # quantities reflect what stock would look like without this transaction.
+                # This ensures the subsequent stock check validates against correct levels.
                 for existing_item in instance.items.all():
                     inventory = locked_inventory[existing_item.inventory_id]
                     inventory.quantity_on_hand -= existing_item.quantity
                     inventory.refresh_stats()
 
-                # Delete all existing items
+                # Validate new items against post-reversal stock levels (inside the lock).
+                errors = self._check_stock_and_cost(
+                    instance.transaction_type, items_data, locked_inventory
+                )
+                if errors:
+                    raise serializers.ValidationError({'items': errors})
+
+                # Delete old items and recreate with new data.
                 instance.items.all().delete()
 
-                # Recreate items and apply new inventory effects
                 for item_data in items_data:
                     inventory = locked_inventory[item_data['inventory'].id]
                     quantity = item_data['quantity']
-                    cost_per_unit = inventory.product.cost_per_unit or Decimal('0.00')
+                    cost_per_unit = inventory.product.cost_per_unit
 
                     TransactionItem.objects.create(
                         transaction=instance,
