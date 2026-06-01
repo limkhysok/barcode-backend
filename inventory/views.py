@@ -1,11 +1,19 @@
-from datetime import timedelta
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, timedelta
+from typing import Any
+
 from django.db import IntegrityError
-from django.db.models import Sum, Count, Q
+from django.db.models import Count, Q, QuerySet, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from rest_framework import viewsets, status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
+
 from .models import Inventory, STATUS_LOW, STATUS_NO_STOCK
 from .serializers import InventorySerializer
 from products.models import Product
@@ -14,10 +22,7 @@ from users.permissions import RBACPermission
 from users.utils import log_activity
 
 
-
-
-
-class InventoryViewSet(viewsets.ModelViewSet):
+class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
     """
     Explore and manage inventory (site tracking, stock counts, and locations).
 
@@ -37,8 +42,8 @@ class InventoryViewSet(viewsets.ModelViewSet):
     serializer_class = InventorySerializer
     permission_classes = [RBACPermission]
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
+    def get_queryset(self) -> QuerySet[Inventory, Inventory]:
+        queryset: QuerySet[Inventory, Inventory] = super().get_queryset()  # type: ignore[assignment]
         params = self.request.query_params
 
         product_id = params.get('product_id')
@@ -55,13 +60,13 @@ class InventoryViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def list(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
+    def list(self, request: Request, *_args: Any, **_kwargs: Any) -> Response:
+        queryset: QuerySet[Inventory, Inventory] = self.filter_queryset(self.get_queryset())  # type: ignore[assignment]
+        serializer: BaseSerializer[Any] = self.get_serializer(queryset, many=True)  # type: ignore[assignment]
         return Response({'count': len(serializer.data), 'results': serializer.data})
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+    def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        serializer: BaseSerializer[Any] = self.get_serializer(data=request.data)  # type: ignore[assignment]
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -74,13 +79,13 @@ class InventoryViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    def _save_and_refresh(self, serializer):
-        instance = serializer.save()
+    def _save_and_refresh(self, serializer: BaseSerializer[Any]) -> Inventory:
+        instance: Inventory = serializer.save()  # type: ignore[assignment]
         instance.refresh_stats()
+        return instance
 
-    def perform_create(self, serializer):
-        self._save_and_refresh(serializer)
-        obj = serializer.instance
+    def perform_create(self, serializer: BaseSerializer[Any]) -> None:
+        obj = self._save_and_refresh(serializer)
         log_activity(self.request, 'inventory_created', {
             'inventory_id': obj.id,
             'product': obj.product.product_name,
@@ -88,9 +93,8 @@ class InventoryViewSet(viewsets.ModelViewSet):
             'quantity': obj.quantity_on_hand,
         })
 
-    def perform_update(self, serializer):
-        self._save_and_refresh(serializer)
-        obj = serializer.instance
+    def perform_update(self, serializer: BaseSerializer[Any]) -> None:
+        obj = self._save_and_refresh(serializer)
         log_activity(self.request, 'inventory_updated', {
             'inventory_id': obj.id,
             'product': obj.product.product_name,
@@ -98,7 +102,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
             'quantity': obj.quantity_on_hand,
         })
 
-    def perform_destroy(self, instance):
+    def perform_destroy(self, instance: Any) -> None:
         log_activity(self.request, 'inventory_deleted', {
             'inventory_id': instance.id,
             'product': instance.product.product_name,
@@ -106,33 +110,34 @@ class InventoryViewSet(viewsets.ModelViewSet):
         })
         instance.delete()
 
-    def _build_activity(self, qs):
+    def _build_activity(self, qs: QuerySet[Inventory, Inventory]) -> dict[str, Any]:
         """
         Single DB query for 90 days of daily data, then slice in Python
         for each window (7/14/30 days daily, 90 days weekly).
         """
         cutoff = timezone.now() - timedelta(days=90)
-        rows = (
+        rows: Any = (
             qs.filter(updated_at__gte=cutoff)
             .annotate(period=TruncDate('updated_at'))
             .values('period')
             .annotate(new_records=Count('id'))
             .order_by('period')
         )
-        daily = [(row['period'], row['new_records']) for row in rows]
+        daily: list[tuple[date, int]] = [  # type: ignore[assignment]
+            (row['period'], row['new_records']) for row in rows
+        ]
 
         today = timezone.now().date()
 
-        def slice_days(days):
+        def slice_days(days: int) -> list[dict[str, Any]]:
             cutoff_date = today - timedelta(days=days)
             return [
                 {'date': d.isoformat(), 'new_records': n}
                 for d, n in daily if d >= cutoff_date
             ]
 
-        def to_weeks():
-            from collections import defaultdict
-            week_totals = defaultdict(int)
+        def to_weeks() -> list[dict[str, Any]]:
+            week_totals: defaultdict[date, int] = defaultdict(int)
             for d, n in daily:
                 week_start = d - timedelta(days=d.weekday())
                 week_totals[week_start] += n
@@ -149,7 +154,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
         }
 
     @action(detail=False, methods=['get'], url_path='stats')
-    def stats(self, request):
+    def stats(self, _request: Request) -> Response:
         """
         GET /api/v1/inventory/stats/
         Returns aggregate overview + time-based activity — not paginated.
@@ -190,7 +195,7 @@ class InventoryViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['get'], url_path='scan')
-    def scan(self, request):
+    def scan(self, request: Request) -> Response:
         """
         GET /api/v1/inventory/scan/?barcode=SN-XXXXXX
 

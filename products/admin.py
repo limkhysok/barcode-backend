@@ -1,10 +1,16 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.contrib import admin
 from django.utils.html import format_html
+
 from core.admin_site import admin_site
 from .models import Product
 
+
 @admin.register(Product, site=admin_site)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         'row_number', 'product_thumbnail', 'barcode', 'product_name',
         'category', 'cost_per_unit', 'reorder_level', 'supplier',
@@ -15,11 +21,11 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('category', 'created_at')
 
     @admin.display(description='#', ordering='id')
-    def row_number(self, obj):
+    def row_number(self, obj: Product) -> int:
         return obj.id
 
     @admin.display(description='Picture')
-    def product_thumbnail(self, obj):
+    def product_thumbnail(self, obj: Product) -> Any:
         if obj.product_picture:
             return format_html('<img src="{}" style="height:40px;border-radius:4px;" />', obj.product_picture.url)
         return '—'

@@ -1,5 +1,11 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+
 from django.core.validators import MinValueValidator
 from django.db import models
+
 from products.models import Product
 
 
@@ -11,21 +17,22 @@ REORDER_CHOICES = [(STATUS_LOW, STATUS_LOW), (STATUS_NO, STATUS_NO), (STATUS_NO_
 
 
 class Inventory(models.Model):
-    product = models.ForeignKey(
+    id: int
+    product: Product = models.ForeignKey(  # type: ignore[assignment]
         Product, on_delete=models.PROTECT, related_name="inventory_records"
     )
-    site = models.CharField(max_length=255, db_index=True)  # Store A, B, C
-    location = models.CharField(max_length=255)
-    quantity_on_hand = models.IntegerField(
+    site: str = models.CharField(max_length=255, db_index=True)  # type: ignore[assignment]  # Store A, B, C
+    location: str = models.CharField(max_length=255)  # type: ignore[assignment]
+    quantity_on_hand: int = models.IntegerField(  # type: ignore[assignment]
         default=0, validators=[MinValueValidator(0)]
     )
-    stock_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    reorder_status = models.CharField(
+    stock_value: Decimal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # type: ignore[assignment]
+    reorder_status: str = models.CharField(  # type: ignore[assignment]
         max_length=8, choices=REORDER_CHOICES, default=STATUS_NO, db_index=True
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at: datetime = models.DateTimeField(auto_now_add=True)  # type: ignore[assignment]
+    updated_at: datetime = models.DateTimeField(auto_now=True)  # type: ignore[assignment]
 
     class Meta:
         verbose_name_plural = "Inventory"
@@ -37,12 +44,11 @@ class Inventory(models.Model):
             )
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product.product_name} at {self.site} ({self.location})"
 
-    def refresh_stats(self):
+    def refresh_stats(self) -> None:
         """Recalculate stock value and reorder status based on quantity."""
-        from decimal import Decimal
         cost = self.product.cost_per_unit or Decimal('0.00')
         self.stock_value = self.quantity_on_hand * cost
         if self.quantity_on_hand == 0:
