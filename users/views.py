@@ -1,7 +1,8 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
@@ -30,6 +31,7 @@ def api_root(request, format=None):
         'auth': {
             'register': reverse('auth_register', request=request, format=format),
             'login': reverse('token_obtain_pair', request=request, format=format),
+            'logout': reverse('auth_logout', request=request, format=format),
             'token_refresh': reverse('token_refresh', request=request, format=format),
         },
         'me': reverse('user_detail', request=request, format=format),
@@ -46,8 +48,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
+        username = request.data.get('username', '')
         if response.status_code == 200:
-            username = request.data.get('username', '')
             user = User.objects.filter(username=username).first()
             UserActivity.objects.create(
                 user=user,
@@ -55,7 +57,23 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 ip_address=_get_ip(request),
                 user_agent=_get_ua(request),
             )
+        else:
+            UserActivity.objects.create(
+                user=None,
+                action='login_failed',
+                ip_address=_get_ip(request),
+                user_agent=_get_ua(request),
+                details={'attempted_username': username},
+            )
         return response
+
+
+class LogoutView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        log_activity(request, 'logout')
+        return Response({'detail': 'Successfully logged out.'})
 
 
 class RegisterView(generics.CreateAPIView):
@@ -73,6 +91,31 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
+class PasswordChangeView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+
+        if not old_password or not new_password:
+            return Response(
+                {'detail': 'old_password and new_password are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not request.user.check_password(old_password):
+            return Response(
+                {'detail': 'Current password is incorrect.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(new_password)
+        request.user.save()
+        log_activity(request, 'password_change')
+        return Response({'detail': 'Password changed successfully.'})
+
+
 class UserDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = (permissions.IsAuthenticated,)
@@ -82,14 +125,7 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         serializer.save()
-        UserActivity.objects.create(
-            user=self.request.user,
-            action='profile_update',
-            ip_address=_get_ip(self.request),
-            user_agent=_get_ua(self.request),
-        )
-
-
+        log_activity(self.request, 'profile_update')
 
 
 class AdminUserListView(generics.ListCreateAPIView):
@@ -100,13 +136,10 @@ class AdminUserListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        UserActivity.objects.create(
-            user=user,
-            action='register',
-            ip_address=_get_ip(self.request),
-            user_agent=_get_ua(self.request),
-            details={'created_by': self.request.user.username},
-        )
+        log_activity(self.request, 'user_created', {
+            'user_id': user.id,
+            'username': user.username,
+        })
 
 
 class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -117,22 +150,16 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save()
-        UserActivity.objects.create(
-            user=serializer.instance,
-            action='profile_update',
-            ip_address=_get_ip(self.request),
-            user_agent=_get_ua(self.request),
-            details={'updated_by': self.request.user.username},
-        )
+        log_activity(self.request, 'user_updated', {
+            'user_id': serializer.instance.id,
+            'username': serializer.instance.username,
+        })
 
     def perform_destroy(self, instance):
-        UserActivity.objects.create(
-            user=instance,
-            action='other',
-            ip_address=_get_ip(self.request),
-            user_agent=_get_ua(self.request),
-            details={'deleted_by': self.request.user.username},
-        )
+        log_activity(self.request, 'user_deleted', {
+            'user_id': instance.id,
+            'username': instance.username,
+        })
         instance.delete()
 
 
@@ -163,10 +190,10 @@ class BossStaffListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        log_activity(self.request, 'register', {
-            'created_user_id': user.id,
-            'created_username': user.username,
-            'via': 'boss_dashboard'
+        log_activity(self.request, 'user_created', {
+            'user_id': user.id,
+            'username': user.username,
+            'via': 'boss_dashboard',
         })
 
 
@@ -178,18 +205,16 @@ class BossStaffDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         user = serializer.save()
-        log_activity(self.request, 'profile_update', {
-            'updated_user_id': user.id,
-            'updated_username': user.username,
-            'via': 'boss_dashboard'
+        log_activity(self.request, 'user_updated', {
+            'user_id': user.id,
+            'username': user.username,
+            'via': 'boss_dashboard',
         })
 
     def perform_destroy(self, instance):
-        UserActivity.objects.create(
-            user=instance,
-            action='other',
-            ip_address=_get_ip(self.request),
-            user_agent=_get_ua(self.request),
-            details={'deleted_by': self.request.user.username, 'via': 'boss_dashboard'},
-        )
+        log_activity(self.request, 'user_deleted', {
+            'user_id': instance.id,
+            'username': instance.username,
+            'via': 'boss_dashboard',
+        })
         instance.delete()

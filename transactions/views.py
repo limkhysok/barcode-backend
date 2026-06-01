@@ -157,6 +157,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
+        log_activity(request, 'transaction_exported', {
+            'date': export_date.isoformat(),
+            'type': transaction_type or 'all',
+            'filename': filename,
+        })
+
         writer = csv.writer(response)
         writer.writerow([
             'transaction_id',

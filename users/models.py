@@ -18,6 +18,10 @@ class UserActivity(models.Model):
         ('register', 'Register'),
         ('profile_update', 'Profile Update'),
         ('password_change', 'Password Change'),
+        # User management (admin/boss)
+        ('user_created', 'User Created'),
+        ('user_updated', 'User Updated'),
+        ('user_deleted', 'User Deleted'),
         # Products
         ('product_created', 'Product Created'),
         ('product_updated', 'Product Updated'),
@@ -29,7 +33,7 @@ class UserActivity(models.Model):
         # Transactions
         ('transaction_created', 'Transaction Created'),
         ('transaction_deleted', 'Transaction Deleted'),
-        ('other', 'Other'),
+        ('transaction_exported', 'Transaction Exported'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')

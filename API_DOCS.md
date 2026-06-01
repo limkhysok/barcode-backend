@@ -18,7 +18,7 @@ http://localhost:8000/api/v1/
 
 | Prefix | Purpose |
 |--------|---------|
-| `/api/v1/auth/` | Authentication — login, register, token refresh |
+| `/api/v1/auth/` | Authentication — login, logout, register, token refresh, password change |
 | `/api/v1/users/` | Current user profile (`me/`) |
 | `/api/v1/admin/` | User management and activity logs (admin/boss only) |
 | `/api/v1/products/` | Product CRUD |
@@ -129,6 +129,19 @@ No authentication required.
 #### Response (200 OK)
 ```json
 { "access": "newly_generated_access_token" }
+```
+
+---
+
+### Logout
+Log out the current user. Requires authentication. The client must discard stored tokens after calling this — the server logs the event but JWT tokens are stateless and not server-side invalidated.
+
+- **Endpoint:** `POST /api/v1/auth/logout/`
+- **Auth required:** Yes
+
+#### Response (200 OK)
+```json
+{ "detail": "Successfully logged out." }
 ```
 
 ---
@@ -877,6 +890,29 @@ Manage all users in the system. **Requires `is_staff`, `is_boss`, or `is_superus
 
 | Field | Description |
 |-------|-------------|
-| `action` | One of: `login`, `logout`, `register`, `profile_update`, `password_change`, `other` |
+| `action` | See action table below |
 | `ip_address` | Client IP (supports `X-Forwarded-For` for proxied environments) |
-| `details` | Free-text context (e.g. `"Created by admin john_doe"`) |
+| `details` | JSON object with contextual info (e.g. `{ "attempted_username": "foo" }`) |
+
+#### Action values
+
+| Action | Trigger |
+|--------|---------|
+| `login` | Successful login |
+| `logout` | User called `POST /auth/logout/` |
+| `login_failed` | Failed login attempt — `details.attempted_username` contains the username tried |
+| `register` | New user self-registered |
+| `profile_update` | User updated their own profile via `PATCH /users/me/` |
+| `password_change` | User changed their own password |
+| `user_created` | Admin/Boss created a user — `details.user_id`, `details.username` |
+| `user_updated` | Admin/Boss edited a user — `details.user_id`, `details.username` |
+| `user_deleted` | Admin/Boss deleted a user — `details.user_id`, `details.username` |
+| `product_created` | Product created — `details.product_id`, `details.product_name`, `details.barcode` |
+| `product_updated` | Product updated — same details |
+| `product_deleted` | Product deleted — same details |
+| `inventory_created` | Inventory record created — `details.inventory_id`, `details.product`, `details.site`, `details.quantity` |
+| `inventory_updated` | Inventory record updated — same details |
+| `inventory_deleted` | Inventory record deleted — `details.inventory_id`, `details.product`, `details.site` |
+| `transaction_created` | Transaction created — `details.transaction_id`, `details.type`, `details.item_count` |
+| `transaction_deleted` | Transaction deleted — `details.transaction_id`, `details.type` |
+| `transaction_exported` | CSV export triggered — `details.date`, `details.type`, `details.filename` |
