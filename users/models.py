@@ -41,7 +41,7 @@ class UserActivity(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
-    details = models.JSONField(default=dict, blank=True)
+    details: dict[str, object] = models.JSONField(default=dict, blank=True)  # type: ignore[assignment]
 
     class Meta:
         ordering = ['-timestamp']

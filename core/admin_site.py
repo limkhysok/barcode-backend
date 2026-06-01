@@ -1,6 +1,11 @@
-from django.contrib.admin import AdminSite
-from django.utils import timezone
+from __future__ import annotations
+
 from datetime import timedelta
+from typing import Any
+
+from django.contrib.admin import AdminSite
+from django.http import HttpRequest
+from django.utils import timezone
 
 
 class BarcodeAdminSite(AdminSite):
@@ -9,19 +14,19 @@ class BarcodeAdminSite(AdminSite):
     index_title = "Dashboard"
     enable_nav_sidebar = True
 
-    def index(self, request, extra_context=None):
+    def index(self, request: HttpRequest, extra_context: dict[str, Any] | None = None):
         from users.models import User, UserActivity
         from products.models import Product
         from inventory.models import Inventory
         from transactions.models import Transaction
         from django.contrib.admin.models import LogEntry
         from django.contrib.sessions.models import Session
-        from django.db.models import Sum, Count
+        from django.db.models import Sum
 
         now = timezone.now()
         week_ago = now - timedelta(days=7)
 
-        stats = {
+        stats: dict[str, int | float] = {
             # Users
             "total_users": User.objects.count(),
             "active_users": User.objects.filter(is_active=True).count(),

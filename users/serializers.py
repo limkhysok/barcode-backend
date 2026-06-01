@@ -1,24 +1,29 @@
-from rest_framework import serializers
+from __future__ import annotations
+
+from typing import Any
+
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth.base_user import AbstractBaseUser
+from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer  # type: ignore[import-untyped]
 from .models import UserActivity
 
 User = get_user_model()
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):  # type: ignore[misc]
     @classmethod
-    def get_token(cls, user):
+    def get_token(cls, user: AbstractBaseUser) -> Any:
         token = super().get_token(user)
-        token['username'] = user.username
-        token['is_boss'] = user.is_boss
-        token['is_staff'] = user.is_staff
-        token['is_superuser'] = user.is_superuser
+        token['username'] = user.username  # type: ignore[attr-defined]
+        token['is_boss'] = user.is_boss  # type: ignore[attr-defined]
+        token['is_staff'] = user.is_staff  # type: ignore[attr-defined]
+        token['is_superuser'] = user.is_superuser  # type: ignore[attr-defined]
         return token
 
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
+class UserSerializer(serializers.ModelSerializer[Any]):
+    class Meta:  # type: ignore[override]
         model = User
         fields = (
             'id', 'username', 'email', 'name', 'password',
@@ -32,7 +37,7 @@ class UserSerializer(serializers.ModelSerializer):
             'is_superuser': {'read_only': True},
         }
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> Any:
         password = validated_data.pop('password', None)
         instance = self.Meta.model(**validated_data)
         if password is not None:
@@ -40,7 +45,7 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Any, validated_data: dict[str, Any]) -> Any:
         password = validated_data.pop('password', None)
         instance = super().update(instance, validated_data)
         if password is not None:
@@ -49,9 +54,9 @@ class UserSerializer(serializers.ModelSerializer):
         return instance
 
 
-class UserAdminSerializer(serializers.ModelSerializer):
+class UserAdminSerializer(serializers.ModelSerializer[Any]):
     """Full serializer for admin — role fields are writable."""
-    class Meta:
+    class Meta:  # type: ignore[override]
         model = User
         fields = (
             'id', 'username', 'email', 'name', 'password',
@@ -64,7 +69,7 @@ class UserAdminSerializer(serializers.ModelSerializer):
             'last_login': {'read_only': True},
         }
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> Any:
         password = validated_data.pop('password', None)
         instance = self.Meta.model(**validated_data)
         if password is not None:
@@ -72,19 +77,16 @@ class UserAdminSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get('request')
         if request:
-            # Only superusers can set is_superuser
             if not request.user.is_superuser:
                 attrs.pop('is_superuser', None)
-            
-            # Boss and Superuser can set is_staff, but regular staff cannot
             if not (request.user.is_superuser or getattr(request.user, 'is_boss', False)):
                 attrs.pop('is_staff', None)
         return attrs
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Any, validated_data: dict[str, Any]) -> Any:
         password = validated_data.pop('password', None)
         instance = super().update(instance, validated_data)
         if password is not None:
@@ -93,9 +95,9 @@ class UserAdminSerializer(serializers.ModelSerializer):
         return instance
 
 
-class UserActivitySerializer(serializers.ModelSerializer):
+class UserActivitySerializer(serializers.ModelSerializer[Any]):
     username = serializers.CharField(source='user.username', read_only=True)
 
-    class Meta:
+    class Meta:  # type: ignore[override]
         model = UserActivity
         fields = ('id', 'user', 'username', 'action', 'timestamp', 'ip_address', 'user_agent', 'details')

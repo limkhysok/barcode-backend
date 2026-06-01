@@ -1,18 +1,19 @@
-from rest_framework.pagination import LimitOffsetPagination
-from rest_framework.response import Response
+from __future__ import annotations
+
+from typing import Any, cast
+
+from rest_framework.pagination import LimitOffsetPagination  # type: ignore[import-untyped]
+from rest_framework.response import Response  # type: ignore[import-untyped]
+
 
 class LimitOnlyPagination(LimitOffsetPagination):
-    """
-    A custom pagination class that only uses a limit (renamed to page_size)
-    and removes the 'page' or 'offset' numbering for simple list control.
-    """
-    limit_query_param = 'page_size'
-    offset_query_param = None  # Disables manual offset in the URL
+    limit_query_param = "page_size"
+    offset_query_param = None
     max_limit = 200
 
-    def get_paginated_response(self, data):
+    def get_paginated_response(self, data: list[Any]) -> Response:
         return Response({
-            'count': self.count,
-            'page_size': self.limit,
-            'results': data
+            "count": cast(int, self.count),  # type: ignore[reportUnknownMemberType]
+            "page_size": cast(int, self.limit),  # type: ignore[reportUnknownMemberType]
+            "results": data,
         })

@@ -1,8 +1,11 @@
-from ipware import get_client_ip
+from __future__ import annotations
+
+from rest_framework.request import Request
+from ipware import get_client_ip  # type: ignore[import-untyped]
 from .models import UserActivity
 
 
-def log_activity(request, action, details=None):
+def log_activity(request: Request, action: str, details: dict[str, object] | None = None) -> None:
     ip, _ = get_client_ip(request)
     UserActivity.objects.create(
         user=request.user if request.user.is_authenticated else None,
