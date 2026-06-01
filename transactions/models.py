@@ -1,14 +1,27 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.db.models import Q
 from django.conf import settings
 
+if TYPE_CHECKING:
+    from inventory.models import Inventory as InventoryModel
+    from django.contrib.auth.base_user import AbstractBaseUser
+
+
 class Transaction(models.Model):
+    id: int
     TRANSACTION_TYPES = [('Receive', 'Receive'), ('Sale', 'Sale')]
 
-    # The "Envelope" (Header)
-    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
-    transaction_date = models.DateTimeField(auto_now_add=True, db_index=True)
-    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    transaction_type: str = models.CharField(max_length=10, choices=TRANSACTION_TYPES)  # type: ignore[assignment]
+    transaction_date: datetime = models.DateTimeField(auto_now_add=True, db_index=True)  # type: ignore[assignment]
+    performed_by: AbstractBaseUser | None = models.ForeignKey(  # type: ignore[assignment]
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
 
     class Meta:
         ordering = ['-transaction_date', '-id']
@@ -20,18 +33,20 @@ class Transaction(models.Model):
         ]
 
     @property
-    def total_transaction_value(self):
-        # Dynamically calculate total from all items
-        return sum(item.line_total for item in self.items.all())
+    def total_transaction_value(self) -> Decimal:
+        return sum(
+            (item.line_total for item in TransactionItem.objects.filter(transaction=self)),
+            Decimal(0),
+        )
+
 
 class TransactionItem(models.Model):
-    # The "Contents" (Details)
-    transaction = models.ForeignKey(Transaction, related_name='items', on_delete=models.CASCADE)
-    inventory = models.ForeignKey('inventory.Inventory', on_delete=models.PROTECT)
+    id: int
+    transaction: Transaction = models.ForeignKey(Transaction, related_name='items', on_delete=models.CASCADE)  # type: ignore[assignment]
+    inventory: InventoryModel = models.ForeignKey('inventory.Inventory', on_delete=models.PROTECT)  # type: ignore[assignment]
 
-    # Snapshot fields (Keep these to record the price/name AT THE TIME of transaction)
-    quantity = models.IntegerField()
-    cost_per_unit = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity: int = models.IntegerField()  # type: ignore[assignment]
+    cost_per_unit: Decimal = models.DecimalField(max_digits=10, decimal_places=2)  # type: ignore[assignment]
 
     class Meta:
         constraints = [
@@ -46,7 +61,5 @@ class TransactionItem(models.Model):
         ]
 
     @property
-    def line_total(self):
-        if self.quantity is None or self.cost_per_unit is None:
-            return 0
+    def line_total(self) -> Decimal:
         return self.quantity * self.cost_per_unit

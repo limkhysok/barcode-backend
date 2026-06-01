@@ -2,11 +2,11 @@ from rest_framework import serializers
 from .models import Inventory
 from products.serializers import ProductSerializer
 
-class InventorySerializer(serializers.ModelSerializer):
+class InventorySerializer(serializers.ModelSerializer[Inventory]):
     # Related Product information for display
     product_details = ProductSerializer(source='product', read_only=True)
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = Inventory
         fields = [
             'id', 'product', 'product_details',

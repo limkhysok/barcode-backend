@@ -1,12 +1,17 @@
 import csv
 from datetime import timedelta
-from django.db.models import Count, Q, Sum
+from typing import Any, cast
+
+from django.db.models import Count, Q, QuerySet, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import viewsets, status
 from django.core.cache import cache
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
+
 from .models import Transaction, TransactionItem
 from .serializers import TransactionSerializer
 from products.models import Product
@@ -16,7 +21,7 @@ from users.permissions import RBACPermission
 from users.utils import log_activity
 
 
-class TransactionViewSet(viewsets.ModelViewSet):
+class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
     """
     Log and manage stock transactions (Receive / Sale).
     Each transaction has a single type and can contain multiple items.
@@ -26,23 +31,23 @@ class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [RBACPermission]
     pagination_class = None
 
-    def perform_create(self, serializer):
-        instance = serializer.save()
+    def perform_create(self, serializer: BaseSerializer[Any]) -> None:
+        instance: Transaction = serializer.save()  # type: ignore[assignment]
         log_activity(self.request, 'transaction_created', {
             'transaction_id': instance.id,
             'type': instance.transaction_type,
-            'item_count': instance.items.count(),
+            'item_count': TransactionItem.objects.filter(transaction=instance).count(),
         })
 
-    def perform_destroy(self, instance):
+    def perform_destroy(self, instance: Any) -> None:
         log_activity(self.request, 'transaction_deleted', {
             'transaction_id': instance.id,
             'type': instance.transaction_type,
         })
         instance.delete()
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
+    def get_queryset(self) -> QuerySet[Transaction, Transaction]:
+        queryset: QuerySet[Transaction, Transaction] = super().get_queryset()  # type: ignore[assignment]
         transaction_type = self.request.query_params.get('type')
         barcode = self.request.query_params.get('barcode')
         search = self.request.query_params.get('search')
@@ -57,7 +62,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
         return queryset.distinct()
 
     @action(detail=False, methods=['get'], url_path='stats')
-    def stats(self, request):
+    def stats(self, request: Request) -> Response:
         """
         GET /api/v1/transactions/stats
         Returns aggregate overview — not paginated.
@@ -70,7 +75,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start + timedelta(days=1)
 
-        by_type = list(
+        by_type: list[dict[str, Any]] = list(  # type: ignore[assignment]
             Transaction.objects.values('transaction_type')
             .annotate(
                 total_count=Count('id'),
@@ -84,7 +89,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             .order_by('transaction_type')
         )
 
-        by_type_result = {
+        by_type_result: dict[str, dict[str, Any]] = {
             row['transaction_type']: {
                 "total_count": row['total_count'],
                 "today_count": row['today_count'],
@@ -93,7 +98,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             for row in by_type
         }
 
-        response_data = {
+        response_data: dict[str, Any] = {
             "total_transactions": sum(row['total_count'] for row in by_type),
             "today_transactions": sum(row['today_count'] for row in by_type),
             "by_type": by_type_result,
@@ -104,7 +109,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
         return Response(response_data)
 
     @action(detail=False, methods=['get'], url_path='export')
-    def export(self, request):
+    def export(self, request: Request) -> HttpResponse | Response:
         """
         GET /api/v1/transactions/export/
         Export transactions for a given day as CSV.
@@ -113,7 +118,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
           - type: Receive | Sale (optional, omit for both)
         """
         # Resolve date
-        date_param = request.query_params.get('date')
+        date_param: str | None = request.query_params.get('date')
         if date_param:
             try:
                 from datetime import date as date_cls
@@ -127,7 +132,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             export_date = timezone.now().date()
 
         # Resolve optional type filter
-        transaction_type = request.query_params.get('type')
+        transaction_type: str | None = request.query_params.get('type')
         if transaction_type and transaction_type not in ('Receive', 'Sale'):
             return Response(
                 {'detail': 'Invalid type. Use Receive or Sale.'},
@@ -186,7 +191,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
                 txn.id,
                 txn.transaction_type,
                 txn.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
-                txn.performed_by.username if txn.performed_by else '',
+                txn.performed_by.get_username() if txn.performed_by else '',
                 product.product_name,
                 product.barcode,
                 inv.site,
@@ -199,16 +204,16 @@ class TransactionViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=['post'], url_path='scan')
-    def scan(self, request):
+    def scan(self, request: Request) -> Response:
         """
         Create a single-item transaction by scanning a product barcode.
         POST /api/transactions/scan
         Body: { barcode, transaction_type, quantity, inventory_id (optional) }
         """
-        barcode = request.data.get('barcode')
-        transaction_type = request.data.get('transaction_type')
-        quantity = request.data.get('quantity')
-        inventory_id = request.data.get('inventory_id')
+        barcode: str | None = request.data.get('barcode')  # type: ignore[assignment]
+        transaction_type: str | None = request.data.get('transaction_type')  # type: ignore[assignment]
+        quantity: int | None = request.data.get('quantity')  # type: ignore[assignment]
+        inventory_id: int | None = request.data.get('inventory_id')  # type: ignore[assignment]
 
         required = 'This field is required.'
         errors = {}
@@ -249,11 +254,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
                 )
         elif inventory_qs.count() == 1:
             inventory = inventory_qs.first()
+            assert inventory is not None
         else:
             return Response(
                 {
                     'detail': 'Multiple inventory records found. Please specify inventory_id.',
-                    'inventory': InventorySerializer(inventory_qs, many=True).data,
+                    'inventory': InventorySerializer(inventory_qs, many=True).data,  # pyright: ignore[reportUnknownMemberType]
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -267,12 +273,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
             context={'request': request}
         )
         if serializer.is_valid():
-            txn = serializer.save()
+            txn = cast(Transaction, serializer.save())
             log_activity(self.request, 'transaction_created', {
                 'transaction_id': txn.id,
                 'type': txn.transaction_type,
                 'item_count': 1,
                 'via': 'scan',
             })
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)  # pyright: ignore[reportUnknownMemberType]
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  # pyright: ignore[reportUnknownMemberType]

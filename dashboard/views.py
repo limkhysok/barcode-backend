@@ -1,21 +1,30 @@
-from datetime import date as date_cls, timedelta
+from __future__ import annotations
+
+from datetime import date as date_cls, datetime, timedelta
 from decimal import Decimal
+from typing import Any
+
 from django.db.models import Count, DecimalField, IntegerField, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.core.cache import cache
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from inventory.models import Inventory
 from products.models import Product
-from transactions.models import Transaction
+from transactions.models import Transaction, TransactionItem
 
 
 VALID_RANGES = {"today", "7_days", "14_days", "30_days", "3_months", "12_months", "all_time", "custom"}
 
 
-def _resolve_date_range(range_label, start_param, end_param):
+def _resolve_date_range(
+    range_label: str | None,
+    start_param: str | None,
+    end_param: str | None,
+) -> tuple[datetime | None, datetime | None, str]:
     """
     Return (range_start, range_end, resolved_label).
 
@@ -52,15 +61,15 @@ def _resolve_date_range(range_label, start_param, end_param):
 
     if range_label == "custom":
         try:
-            start = date_cls.fromisoformat(start_param)
-            end = date_cls.fromisoformat(end_param)
+            start = date_cls.fromisoformat(start_param or "")
+            end = date_cls.fromisoformat(end_param or "")
         except (TypeError, ValueError):
             return None, None, "invalid_custom"
         range_start = timezone.make_aware(
-            timezone.datetime(start.year, start.month, start.day, 0, 0, 0)
+            datetime(start.year, start.month, start.day, 0, 0, 0)
         )
         range_end = timezone.make_aware(
-            timezone.datetime(end.year, end.month, end.day, 23, 59, 59, 999999)
+            datetime(end.year, end.month, end.day, 23, 59, 59, 999999)
         )
         return range_start, range_end, "custom"
 
@@ -84,10 +93,10 @@ class DashboardStatsView(APIView):
       - transactions → transaction_date in range
     """
 
-    def get(self, request):
-        range_label = request.query_params.get("range", "today")
-        start_param = request.query_params.get("start")
-        end_param = request.query_params.get("end")
+    def get(self, request: Request) -> Response:
+        range_label: str | None = request.query_params.get("range", "today")
+        start_param: str | None = request.query_params.get("start")
+        end_param: str | None = request.query_params.get("end")
 
         if range_label not in VALID_RANGES:
             return Response(
@@ -105,7 +114,12 @@ class DashboardStatsView(APIView):
                 status=400,
             )
 
-        if resolved_label == "custom" and range_start > range_end:
+        if (
+            resolved_label == "custom"
+            and range_start is not None
+            and range_end is not None
+            and range_start > range_end
+        ):
             return Response(
                 {"detail": "start must be before or equal to end."},
                 status=400,
@@ -118,7 +132,7 @@ class DashboardStatsView(APIView):
         if cached_data:
             return Response(cached_data)
 
-        response_data = {
+        response_data: dict[str, Any] = {
             "range": {
                 "label": resolved_label,
                 "start": range_start.isoformat() if range_start else None,
@@ -136,14 +150,16 @@ class DashboardStatsView(APIView):
 
     # ── Products (scoped by created_at) ──────────────────────────────────────
 
-    def _product_stats(self, range_start, range_end):
+    def _product_stats(
+        self, range_start: datetime | None, range_end: datetime | None
+    ) -> dict[str, Any]:
         qs = Product.objects.all()
         if range_start is not None:
             qs = qs.filter(created_at__gte=range_start, created_at__lte=range_end)
 
         total_in_range = qs.count()
 
-        by_category = list(
+        by_category: list[dict[str, Any]] = list(  # type: ignore[assignment]
             qs.values("category")
             .annotate(count=Count("id"))
             .order_by("category")
@@ -169,12 +185,14 @@ class DashboardStatsView(APIView):
 
     # ── Inventory (scoped by updated_at) ─────────────────────────────────────
 
-    def _inventory_stats(self, range_start, range_end):
+    def _inventory_stats(
+        self, range_start: datetime | None, range_end: datetime | None
+    ) -> dict[str, Any]:
         qs = Inventory.objects.all()
         if range_start is not None:
             qs = qs.filter(updated_at__gte=range_start, updated_at__lte=range_end)
 
-        totals = qs.aggregate(
+        totals: dict[str, Any] = qs.aggregate(  # type: ignore[assignment]
             total_records=Count("id"),
             total_quantity=Coalesce(Sum("quantity_on_hand"), 0, output_field=IntegerField()),
             total_stock_value=Coalesce(
@@ -184,7 +202,7 @@ class DashboardStatsView(APIView):
             needs_reorder=Count("id", filter=Q(reorder_status="Yes")),
         )
 
-        by_site = list(
+        by_site: list[dict[str, Any]] = list(  # type: ignore[assignment]
             qs.values("site")
             .annotate(
                 records=Count("id"),
@@ -215,7 +233,9 @@ class DashboardStatsView(APIView):
 
     # ── Transactions (scoped by transaction_date) ─────────────────────────────
 
-    def _transaction_stats(self, range_start, range_end):
+    def _transaction_stats(
+        self, range_start: datetime | None, range_end: datetime | None
+    ) -> dict[str, Any]:
         range_qs = Transaction.objects.all()
         if range_start is not None:
             range_qs = range_qs.filter(
@@ -223,7 +243,7 @@ class DashboardStatsView(APIView):
                 transaction_date__lte=range_end,
             )
 
-        by_type_rows = list(
+        by_type_rows: list[dict[str, Any]] = list(  # type: ignore[assignment]
             range_qs.values("transaction_type")
             .annotate(
                 count=Count("id"),
@@ -232,11 +252,11 @@ class DashboardStatsView(APIView):
             .order_by("transaction_type")
         )
 
-        by_type = {}
+        by_type: dict[str, dict[str, Any]] = {}
         total_in_range = 0
         for row in by_type_rows:
-            txn_type = row["transaction_type"]
-            qty = row["total_quantity"]
+            txn_type: str = row["transaction_type"]
+            qty: int = row["total_quantity"]
             if txn_type == "Sale":
                 qty = abs(qty)
             by_type[txn_type] = {
@@ -252,18 +272,18 @@ class DashboardStatsView(APIView):
             .order_by("-transaction_date", "-id")[:10]
         )
 
-        recent_activity = [
-            {
+        recent_activity: list[dict[str, Any]] = []
+        for txn in recent_qs:
+            # list() hits the prefetch cache instead of firing a COUNT query per row
+            txn_items: list[TransactionItem] = list(txn.items.all())  # type: ignore[attr-defined, assignment]
+            recent_activity.append({
                 "id": txn.id,
                 "transaction_type": txn.transaction_type,
                 "transaction_date": txn.transaction_date.isoformat(),
-                "performed_by": txn.performed_by.username if txn.performed_by else None,
-                # Use list() to hit the prefetch cache instead of firing a COUNT query per row.
-                "item_count": len(txn.items.all()),
-                "total_quantity": abs(sum(item.quantity for item in txn.items.all())),
-            }
-            for txn in recent_qs
-        ]
+                "performed_by": txn.performed_by.get_username() if txn.performed_by else None,
+                "item_count": len(txn_items),
+                "total_quantity": abs(sum(item.quantity for item in txn_items)),
+            })
 
         return {
             "total": total_in_range,

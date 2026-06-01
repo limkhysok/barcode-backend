@@ -227,10 +227,10 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
             )
 
         inventory_qs = Inventory.objects.filter(product=product).order_by('site', 'location')
-        inventory_data = InventorySerializer(inventory_qs, many=True).data
+        inventory_data: list[Any] = InventorySerializer(inventory_qs, many=True).data  # type: ignore[assignment]
 
         return Response({
             "found": len(inventory_data) > 0,
-            "product": ProductSerializer(product).data,
+            "product": ProductSerializer(product).data,  # pyright: ignore[reportUnknownMemberType]
             "inventory": inventory_data,
         })

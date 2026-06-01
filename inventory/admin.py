@@ -3,7 +3,7 @@ from core.admin_site import admin_site
 from .models import Inventory
 
 @admin.register(Inventory, site=admin_site)
-class InventoryAdmin(admin.ModelAdmin):
+class InventoryAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         'row_number', 'product', 'site', 'location',
         'quantity_on_hand', 'stock_value', 'reorder_status',
@@ -14,5 +14,5 @@ class InventoryAdmin(admin.ModelAdmin):
     search_fields = ('product__product_name', 'site', 'location')
 
     @admin.display(description='#', ordering='id')
-    def row_number(self, obj):
-        return obj.id
+    def row_number(self, obj: Inventory) -> int:
+        return obj.id  # type: ignore[return-value]
