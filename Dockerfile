@@ -28,4 +28,4 @@ RUN SECRET_KEY=build_dummy DB_NAME=build DB_USER=build DB_PASSWORD=build DB_HOST
 EXPOSE 8000
 
 # Default command to run
-CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD ["uvicorn", "core.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
