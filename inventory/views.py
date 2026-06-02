@@ -48,7 +48,9 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
         'quantity_on_hand', '-quantity_on_hand',
         'stock_value', '-stock_value',
         'updated_at', '-updated_at',
+        'created_at', '-created_at',
         'site', '-site',
+        'location', '-location',
         'reorder_status', '-reorder_status',
     }
 
