@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
 
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import Count, Q, QuerySet, Sum
 from django.db.models.functions import TruncDate
@@ -42,6 +43,15 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
     serializer_class = InventorySerializer
     permission_classes = [RBACPermission]
 
+    _ALLOWED_ORDERINGS = {
+        'id', '-id',
+        'quantity_on_hand', '-quantity_on_hand',
+        'stock_value', '-stock_value',
+        'updated_at', '-updated_at',
+        'site', '-site',
+        'reorder_status', '-reorder_status',
+    }
+
     def get_queryset(self) -> QuerySet[Inventory, Inventory]:
         queryset: QuerySet[Inventory, Inventory] = super().get_queryset()  # type: ignore[assignment]
         params = self.request.query_params
@@ -58,12 +68,24 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
         if search:
             queryset = queryset.filter(product__product_name__icontains=search)
 
+        reorder_status = params.get('reorder_status')
+        if reorder_status:
+            queryset = queryset.filter(reorder_status=reorder_status)
+
+        ordering = params.get('ordering')
+        if ordering and ordering in self._ALLOWED_ORDERINGS:
+            queryset = queryset.order_by(ordering)
+
         return queryset
 
     def list(self, request: Request, *_args: Any, **_kwargs: Any) -> Response:
         queryset: QuerySet[Inventory, Inventory] = self.filter_queryset(self.get_queryset())  # type: ignore[assignment]
-        serializer: BaseSerializer[Any] = self.get_serializer(queryset, many=True)  # type: ignore[assignment]
-        return Response({'count': len(serializer.data), 'results': serializer.data})
+        page = self.paginate_queryset(queryset)  # type: ignore[no-untyped-call]
+        if page is not None:
+            serializer: BaseSerializer[Any] = self.get_serializer(page, many=True)  # type: ignore[assignment]
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)  # type: ignore[assignment]
+        return Response({'count': queryset.count(), 'next': None, 'previous': None, 'results': serializer.data})
 
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         serializer: BaseSerializer[Any] = self.get_serializer(data=request.data)  # type: ignore[assignment]
@@ -159,6 +181,11 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
         GET /api/v1/inventory/stats/
         Returns aggregate overview + time-based activity — not paginated.
         """
+        cache_key = "inventory_stats_overview"
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+
         qs = Inventory.objects.all()
 
         totals = qs.aggregate(
@@ -178,7 +205,7 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
             .order_by('site')
         )
 
-        return Response({
+        response_data: dict[str, Any] = {
             "total_records": totals['total_records'],
             "total_quantity_on_hand": totals['total_quantity'] or 0,
             "total_stock_value": totals['total_stock_value'] or 0,
@@ -192,7 +219,9 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
                 for row in by_site
             },
             "activity": self._build_activity(qs),
-        })
+        }
+        cache.set(cache_key, response_data, 300)  # 5 minutes
+        return Response(response_data)
 
     @action(detail=False, methods=['get'], url_path='scan')
     def scan(self, request: Request) -> Response:

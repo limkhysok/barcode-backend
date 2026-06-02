@@ -1,6 +1,6 @@
 import csv
 from datetime import timedelta
-from typing import Any, cast
+from typing import Any
 
 from django.db.models import Count, Q, QuerySet, Sum
 from django.http import HttpResponse
@@ -29,14 +29,14 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
     queryset = Transaction.objects.select_related('performed_by').prefetch_related('items__inventory__product').all()
     serializer_class = TransactionSerializer
     permission_classes = [RBACPermission]
-    pagination_class = None
 
     def perform_create(self, serializer: BaseSerializer[Any]) -> None:
+        item_count: int = len(serializer.validated_data.get('items', []))
         instance: Transaction = serializer.save()  # type: ignore[assignment]
         log_activity(self.request, 'transaction_created', {
             'transaction_id': instance.id,
             'type': instance.transaction_type,
-            'item_count': TransactionItem.objects.filter(transaction=instance).count(),
+            'item_count': item_count,
         })
 
     def perform_destroy(self, instance: Any) -> None:
@@ -139,6 +139,9 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        from datetime import datetime as dt
+        day_start = dt(export_date.year, export_date.month, export_date.day, 0, 0, 0)
+        day_end = dt(export_date.year, export_date.month, export_date.day, 23, 59, 59, 999999)
         qs = (
             TransactionItem.objects
             .select_related(
@@ -147,7 +150,7 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
                 'inventory__product',
                 'inventory',
             )
-            .filter(transaction__transaction_date__date=export_date)
+            .filter(transaction__transaction_date__range=(day_start, day_end))
         )
         if transaction_type:
             qs = qs.filter(transaction__transaction_type=transaction_type)
@@ -235,9 +238,9 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Step 2: Find inventory records for this product
-        inventory_qs = Inventory.objects.filter(product=product)
-        if not inventory_qs.exists():
+        # Step 2: Find inventory records for this product (single query)
+        inventory_list = list(Inventory.objects.filter(product=product))
+        if not inventory_list:
             return Response(
                 {'detail': 'Product found but has no inventory record.', 'product': product.product_name},
                 status=status.HTTP_404_NOT_FOUND
@@ -245,21 +248,20 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
 
         # Step 3: Resolve which inventory record to use
         if inventory_id:
-            try:
-                inventory = inventory_qs.get(id=inventory_id)
-            except Inventory.DoesNotExist:
+            matched = [inv for inv in inventory_list if inv.id == inventory_id]
+            if not matched:
                 return Response(
                     {'detail': 'The specified inventory_id does not belong to this product.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-        elif inventory_qs.count() == 1:
-            inventory = inventory_qs.first()
-            assert inventory is not None
+            inventory = matched[0]
+        elif len(inventory_list) == 1:
+            inventory = inventory_list[0]
         else:
             return Response(
                 {
                     'detail': 'Multiple inventory records found. Please specify inventory_id.',
-                    'inventory': InventorySerializer(inventory_qs, many=True).data,  # pyright: ignore[reportUnknownMemberType]
+                    'inventory': InventorySerializer(inventory_list, many=True).data,  # pyright: ignore[reportUnknownMemberType]
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -273,7 +275,7 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
             context={'request': request}
         )
         if serializer.is_valid():
-            txn = cast(Transaction, serializer.save())
+            txn: Transaction = serializer.save()  # type: ignore[assignment]
             log_activity(self.request, 'transaction_created', {
                 'transaction_id': txn.id,
                 'type': txn.transaction_type,

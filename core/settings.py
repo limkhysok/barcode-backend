@@ -123,6 +123,7 @@ DATABASES = {
         "PASSWORD": DB_PASSWORD,
         "HOST": DB_HOST,
         "PORT": DB_PORT,
+        "CONN_MAX_AGE": 60,  # reuse connections for 60s instead of reconnecting every request
         "OPTIONS": {
             "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
         },
@@ -209,6 +210,8 @@ REST_FRAMEWORK = {
         "user": "1000/day",
         "login": "5/min",
     },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 100,
 }
 
 # Simple JWT settings

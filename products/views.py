@@ -70,9 +70,15 @@ class ProductViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
             return Response(cached_data)
 
         queryset: QuerySet[Product, Product] = self.filter_queryset(self.get_queryset())  # type: ignore[assignment]
-        serializer: BaseSerializer[Any] = self.get_serializer(queryset, many=True)  # type: ignore[assignment]
-        response_data: dict[str, Any] = {'count': len(serializer.data), 'results': serializer.data}
+        page = self.paginate_queryset(queryset)  # type: ignore[no-untyped-call]
+        if page is not None:
+            serializer: BaseSerializer[Any] = self.get_serializer(page, many=True)  # type: ignore[assignment]
+            response_data: dict[str, Any] = self.get_paginated_response(serializer.data).data
+            cache.set(cache_key, response_data, 120)  # 2 minutes
+            return Response(response_data)
 
+        serializer = self.get_serializer(queryset, many=True)  # type: ignore[assignment]
+        response_data = {'count': queryset.count(), 'next': None, 'previous': None, 'results': serializer.data}
         cache.set(cache_key, response_data, 120)  # 2 minutes
         return Response(response_data)
 
