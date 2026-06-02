@@ -206,9 +206,9 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "60/min",
-        "user": "1000/day",
-        "login": "5/min",
+        "anon": "120/min",
+        "user": "2000/day",
+        "login": "10/min",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 100,
