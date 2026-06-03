@@ -12,11 +12,12 @@ from inventory.models import Inventory
 
 class TransactionItemSerializer(serializers.ModelSerializer[TransactionItem]):
     product_name = serializers.CharField(source='inventory.product.product_name', read_only=True)
+    barcode = serializers.CharField(source='inventory.product.barcode', read_only=True)
     line_total = serializers.SerializerMethodField()
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         model = TransactionItem
-        fields = ['id', 'inventory', 'product_name', 'quantity', 'cost_per_unit', 'line_total']
+        fields = ['id', 'inventory', 'product_name', 'barcode', 'quantity', 'cost_per_unit', 'line_total']
         read_only_fields = ['cost_per_unit', 'line_total']
 
     def get_line_total(self, obj: TransactionItem) -> Decimal:
