@@ -51,6 +51,7 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
         transaction_type = self.request.query_params.get('type')
         barcode = self.request.query_params.get('barcode')
         search = self.request.query_params.get('search')
+        date_filter = self.request.query_params.get('date_filter')
 
         if transaction_type:
             queryset = queryset.filter(transaction_type=transaction_type)
@@ -58,6 +59,17 @@ class TransactionViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
             queryset = queryset.filter(items__inventory__product__barcode=barcode)
         if search:
             queryset = queryset.filter(items__inventory__product__product_name__icontains=search)
+        if date_filter:
+            now = timezone.now()
+            if date_filter == 'today':
+                queryset = queryset.filter(transaction_date__date=now.date())
+            elif date_filter == 'yesterday':
+                yesterday = now.date() - timedelta(days=1)
+                queryset = queryset.filter(transaction_date__date=yesterday)
+            elif date_filter == 'this_week':
+                queryset = queryset.filter(transaction_date__gte=now - timedelta(days=7))
+            elif date_filter == 'this_month':
+                queryset = queryset.filter(transaction_date__gte=now - timedelta(days=30))
 
         return queryset.distinct()
 
