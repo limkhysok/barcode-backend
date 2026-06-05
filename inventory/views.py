@@ -68,7 +68,10 @@ class InventoryViewSet(viewsets.ModelViewSet):  # type: ignore[type-arg]
 
         search = params.get('search')
         if search:
-            queryset = queryset.filter(product__product_name__icontains=search)
+            queryset = queryset.filter(
+                Q(product__product_name__icontains=search) |
+                Q(product__barcode__icontains=search)
+            )
 
         reorder_status = params.get('reorder_status')
         if reorder_status:
