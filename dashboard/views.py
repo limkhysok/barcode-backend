@@ -65,12 +65,9 @@ def _resolve_date_range(
             end = date_cls.fromisoformat(end_param or "")
         except (TypeError, ValueError):
             return None, None, "invalid_custom"
-        range_start = timezone.make_aware(
-            datetime(start.year, start.month, start.day, 0, 0, 0)
-        )
-        range_end = timezone.make_aware(
-            datetime(end.year, end.month, end.day, 23, 59, 59, 999999)
-        )
+        # USE_TZ = False, so the DB stores naive datetimes — must not use make_aware()
+        range_start = datetime(start.year, start.month, start.day, 0, 0, 0)
+        range_end = datetime(end.year, end.month, end.day, 23, 59, 59, 999999)
         return range_start, range_end, "custom"
 
     # Unrecognised label → default to today
@@ -169,7 +166,7 @@ class DashboardStatsView(APIView):
         product_ids = qs.values_list("id", flat=True)
         low_stock = Inventory.objects.filter(
             product_id__in=product_ids,
-            reorder_status="Yes",
+            reorder_status__in=["LOW", "NO STOCK"],
         ).count()
         out_of_stock = Inventory.objects.filter(
             product_id__in=product_ids,
@@ -199,7 +196,7 @@ class DashboardStatsView(APIView):
                 Sum("stock_value"), Decimal("0"),
                 output_field=DecimalField(max_digits=14, decimal_places=2),
             ),
-            needs_reorder=Count("id", filter=Q(reorder_status="Yes")),
+            needs_reorder=Count("id", filter=Q(reorder_status__in=["LOW", "NO STOCK"])),
         )
 
         by_site: list[dict[str, Any]] = list(  # type: ignore[assignment]
